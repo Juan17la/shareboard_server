@@ -87,6 +87,8 @@ export interface Participant {
   nickname: string;
   /** Presence color, assigned by the server on join. */
   color: string;
+  /** Presence icon (an emoji) picked by the user; the initial when absent. */
+  avatar?: string;
   role: Role;
   cursor?: Point;
   lastSeen: number;

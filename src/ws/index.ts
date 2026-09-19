@@ -61,6 +61,7 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
           nickname,
           color:
             existing?.color ?? PRESENCE_COLORS[board.participants.size % PRESENCE_COLORS.length]!,
+          ...(existing?.avatar ? { avatar: existing.avatar } : {}),
           role: roleFor(board.meta, auth!.userId),
           lastSeen: Date.now(),
         };
@@ -160,15 +161,19 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         if (!joined) return;
         hub.leave(boardId!, client);
 
-        void store.getBoard(boardId!).then((board) => {
-          // Only drop presence if no newer socket took this user's slot.
-          if (hub.clientsOf(board.meta.id).some((c) => c.userId === auth!.userId)) return;
-          board.participants.delete(auth!.userId);
-          hub.broadcast(board.meta.id, {
-            type: 'participants',
-            participants: store.participantList(board),
-          });
-        });
+        void store
+          .getBoard(boardId!)
+          .then((board) => {
+            // Only drop presence if no newer socket took this user's slot.
+            if (hub.clientsOf(board.meta.id).some((c) => c.userId === auth!.userId)) return;
+            board.participants.delete(auth!.userId);
+            hub.broadcast(board.meta.id, {
+              type: 'participants',
+              participants: store.participantList(board),
+            });
+          })
+          // The board may have been deleted while the socket was open.
+          .catch(() => {});
       });
     },
   );
