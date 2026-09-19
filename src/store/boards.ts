@@ -119,6 +119,13 @@ export async function resolveShortCode(shortCode: string): Promise<string> {
   return id;
 }
 
+/** Drops the board everywhere: memory, code index and (if enabled) Mongo. */
+export async function deleteBoard(board: ActiveBoard): Promise<void> {
+  active.delete(board.meta.id);
+  codeIndex.delete(board.meta.shortCode);
+  await db.deleteBoard(board.meta.id);
+}
+
 export function isNicknameTaken(board: ActiveBoard, nickname: string, userId: UserId): boolean {
   const wanted = nickname.toLowerCase();
   return [...board.participants.values()].some(

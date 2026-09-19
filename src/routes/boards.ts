@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { AppError, forbidden, notFound } from '../errors.js';
 import { visibleElements } from '../model/ops.js';
+import { CloseCode } from '../model/protocol.js';
 import { roleFor } from '../model/rules.js';
 import { isValidShortCode, normalizeShortCode } from '../model/short-code.js';
 import type { BoardSnapshot, Participant } from '../model/types.js';
@@ -90,6 +91,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
         requested ??
         existing?.color ??
         PRESENCE_COLORS[board.participants.size % PRESENCE_COLORS.length]!,
+      ...(body.avatar ? { avatar: body.avatar } : {}),
       role: roleFor(board.meta, body.userId),
       lastSeen: Date.now(),
     };
@@ -110,6 +112,21 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
     if (name) board.meta.name = name.slice(0, 80);
     store.touch(board);
     return board.meta;
+  });
+
+  /**
+   * Delete. Creator only. Everyone still on the board is told why their socket
+   * is about to close, then closed with NOT_FOUND so no client reconnects.
+   */
+  app.delete<{ Params: { id: string } }>('/boards/:id', async (req, reply) => {
+    const board = await store.getBoard(req.params.id);
+    assertCreator(board, tokenFor(req, board.meta.id).userId);
+    for (const client of hub.clientsOf(board.meta.id)) {
+      client.send({ type: 'error', code: 'BOARD_NOT_FOUND', message: 'This board was deleted' });
+      client.close(CloseCode.NOT_FOUND, 'Board deleted');
+    }
+    await store.deleteBoard(board);
+    return reply.code(204).send();
   });
 
   /** Permission changes recompute every role and are pushed over the socket. */
