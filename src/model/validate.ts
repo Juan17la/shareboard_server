@@ -182,6 +182,19 @@ export function validateElement(input: unknown): BoardElement {
           'strokeWidth',
         ),
         fill: input.fill == null ? null : color(input.fill, 'fill'),
+        ...(typeof input.text === 'string' && input.text
+          ? { text: str(input.text, 'text', LIMITS.maxTextLength) }
+          : null),
+        ...(input.fontSize !== undefined
+          ? {
+              fontSize: inRange(
+                num(input.fontSize, 'fontSize'),
+                LIMITS.minFontSize,
+                LIMITS.maxFontSize,
+                'fontSize',
+              ),
+            }
+          : null),
       };
     }
     case 'text': {
