@@ -40,6 +40,10 @@ export interface ShapeElement extends ElementBase {
   stroke: string;
   strokeWidth: number;
   fill?: string | null;
+  /** Optional label, centred inside the shape (on the midpoint of a line). */
+  text?: string;
+  /** Label size; `SHAPE_TEXT_SIZE` when absent. */
+  fontSize?: number;
 }
 
 export interface TextElement extends ElementBase {
