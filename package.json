@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Live Whiteboard backend \u2014 REST + WebSocket (see mobile/docs).",
+  "description": "Live Whiteboard backend — REST + WebSocket (see mobile/docs).",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
     "build": "tsc -p tsconfig.json",
@@ -14,8 +14,7 @@
     "@fastify/cors": "^11.1.0",
     "@fastify/websocket": "^11.2.0",
     "fastify": "^5.6.1",
-    "mongodb": "^6.20.0",
-    "nanoid": "^5.1.6"
+    "mongodb": "^6.20.0"
   },
   "devDependencies": {
     "@types/node": "^24.7.0",
