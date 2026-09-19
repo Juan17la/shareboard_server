@@ -95,6 +95,8 @@ export interface JoinBody {
   pin?: string;
   /** Preferred presence colour. Advisory — see the join route. */
   color?: string;
+  /** Presence icon picked on the identity screen. */
+  avatar?: string;
 }
 
 export function validateJoin(body: unknown): JoinBody {
@@ -104,6 +106,7 @@ export function validateJoin(body: unknown): JoinBody {
     nickname: validateNickname(body.nickname),
     ...(body.pin != null ? { pin: validatePin(body.pin) } : {}),
     ...(body.color != null ? { color: color(body.color, 'color') } : {}),
+    ...(body.avatar != null ? { avatar: str(body.avatar, 'avatar', 8) } : {}),
   };
 }
 
@@ -202,7 +205,9 @@ export function validateElement(input: unknown): BoardElement {
         ...base,
         kind: 'text',
         at: point(input.at, 'at'),
-        text: str(input.text, 'text', LIMITS.maxTextLength),
+        // Empty is allowed: the editor adds the element first and types into
+        // it; a label left empty is deleted by the client on commit.
+        text: input.text === '' ? '' : str(input.text, 'text', LIMITS.maxTextLength),
         color: color(input.color, 'color'),
         fontSize: inRange(
           num(input.fontSize, 'fontSize'),
