@@ -51,3 +51,7 @@ export async function shortCodeExists(shortCode: string): Promise<boolean> {
 export async function saveBoard(doc: BoardDoc): Promise<void> {
   await boards?.replaceOne({ _id: doc._id }, doc, { upsert: true });
 }
+
+export async function deleteBoard(id: string): Promise<void> {
+  await boards?.deleteOne({ _id: id });
+}

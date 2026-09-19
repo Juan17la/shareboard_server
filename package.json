@@ -8,7 +8,8 @@
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node test/smoke.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
