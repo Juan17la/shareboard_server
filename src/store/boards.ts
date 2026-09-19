@@ -2,7 +2,7 @@
  * Active boards live in memory; MongoDB is only touched when a board goes cold
  * or on the periodic safety flush (docs/06-loading-exporting).
  */
-import { nanoid } from 'nanoid';
+import { randomUUID } from 'node:crypto';
 
 import { config } from '../config.js';
 import { notFound } from '../errors.js';
@@ -74,7 +74,7 @@ export async function createBoard(input: {
   const elements = input.elements ?? [];
   const board: ActiveBoard = {
     meta: {
-      id: `brd_${nanoid(12)}`,
+      id: `brd_${randomUUID().replace(/-/g, '').slice(0, 12)}`,
       shortCode,
       name: input.name,
       access: input.access,
