@@ -22,6 +22,39 @@ interface ElementBase {
   z: number;
   /** Soft delete, so removals propagate deterministically. */
   deleted?: boolean;
+  /** Elements sharing a group id select and move as one. */
+  group?: string | null;
+}
+
+/** What a line or arrow ends in. */
+export const MARKERS = [
+  'none',
+  'arrow',
+  'triangle',
+  'triangle-outline',
+  'circle',
+  'circle-outline',
+  'circle-half',
+  'diamond',
+  'diamond-outline',
+  'bar',
+  'one',
+  'many',
+  'zero-one',
+  'zero-many',
+  'one-many',
+] as const;
+export type Marker = (typeof MARKERS)[number];
+export const ROUTES = ['straight', 'curved', 'elbow'] as const;
+export type Route = (typeof ROUTES)[number];
+export const DASHES = ['solid', 'dashed', 'dotted'] as const;
+export type Dash = (typeof DASHES)[number];
+
+/** A line end bound to a shape: the point is (u, v) ∈ [0,1]² of that shape's box. */
+export interface Link {
+  id: string;
+  u: number;
+  v: number;
 }
 
 export interface StrokeElement extends ElementBase {
@@ -44,6 +77,14 @@ export interface ShapeElement extends ElementBase {
   text?: string;
   /** Label size; `SHAPE_TEXT_SIZE` when absent. */
   fontSize?: number;
+  // Lines and arrows only. Absent: no start marker, an `arrow` head on an arrow.
+  headStart?: Marker;
+  headEnd?: Marker;
+  route?: Route;
+  dash?: Dash;
+  /** Ends bound to a shape follow it when it moves. Null: unbound. */
+  fromLink?: Link | null;
+  toLink?: Link | null;
 }
 
 export interface TextElement extends ElementBase {

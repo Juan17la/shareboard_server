@@ -19,7 +19,12 @@ export function applyOps(elements: Map<string, BoardElement>, ops: Op[], topZ: n
       case 'update': {
         const current = elements.get(op.id);
         if (!current) break;
-        elements.set(op.id, { ...current, ...op.patch, updatedAt: op.updatedAt } as BoardElement);
+        const next: Record<string, unknown> = { ...current, ...op.patch, updatedAt: op.updatedAt };
+        // `null` in a patch means "unset" (an undo of a key the element did not have).
+        for (const key of Object.keys(next)) if (next[key] === null) delete next[key];
+        elements.set(op.id, next as unknown as BoardElement);
+        // "Bring to front" raises a z past the counter; the next add must clear it.
+        if (typeof op.patch.z === 'number' && op.patch.z > z) z = op.patch.z;
         break;
       }
       case 'delete': {

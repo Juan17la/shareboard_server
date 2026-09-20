@@ -100,6 +100,26 @@ const echoed = await g.nextOf('op');
 assert.equal(echoed.type, 'op', `guest should receive the op, got ${JSON.stringify(echoed)}`);
 assert.equal(echoed.ops[0].el.text, '');
 
+// 1b. A linked, styled arrow round-trips whole, and the paint order survives a
+//     "bring to front": the add after it still lands on top.
+const el = (id, extra) => ({
+  id, kind: 'shape', shape: 'arrow', from: { x: 0, y: 0 }, to: { x: 10, y: 0 }, stroke: '#000000',
+  strokeWidth: 2, fill: null, createdBy: creator, createdAt: now, updatedAt: now, z: 0, ...extra,
+});
+const styled = { headStart: 'circle-outline', headEnd: 'one-many', route: 'elbow', dash: 'dotted',
+  toLink: { id: 'txt1', u: 0.5, v: 1 }, group: 'grp1' };
+c.send(JSON.stringify({ type: 'op', boardId: id, seq: 2, ops: [{ t: 'add', el: el('arr1', styled) }] }));
+const arrow = (await g.nextOf('op')).ops[0].el;
+for (const k of Object.keys(styled)) assert.deepEqual(arrow[k], styled[k], `${k} round-trips`);
+c.send(JSON.stringify({ type: 'op', boardId: id, seq: 3, ops: [{ t: 'add', el: el('bad', { headEnd: 'nope' }) }] }));
+assert.equal((await c.nextOf('error')).code, 'VALIDATION', 'an unknown marker is rejected');
+c.send(JSON.stringify({ type: 'op', boardId: id, seq: 4, ops: [
+  { t: 'update', id: 'txt1', patch: { z: 50 }, updatedAt: now },
+  { t: 'add', el: el('arr2', {}) },
+] }));
+const raised = (await g.nextOf('op')).ops;
+assert.ok(raised[1].el.z > 50, `add after a raise lands on top (${raised[1].el.z})`);
+
 // 2. Delete: creator only, the guest is told and disconnected, the board is gone.
 const denied = await json(`/boards/${id}`, {
   method: 'DELETE',

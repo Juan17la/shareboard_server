@@ -3,12 +3,13 @@
  * Throws `AppError('VALIDATION')`; limits come from `LIMITS`.
  */
 import { invalid } from '../errors.js';
-import { LIMITS } from './types.js';
+import { DASHES, LIMITS, MARKERS, ROUTES } from './types.js';
 import type {
   BoardAccess,
   BoardElement,
   BoardSnapshot,
   EditPolicy,
+  Link,
   Op,
   Point,
 } from './types.js';
@@ -47,6 +48,31 @@ function point(v: unknown, field: string): Point {
 function inRange(v: number, min: number, max: number, field: string): number {
   if (v < min || v > max) throw invalid(`"${field}" must be between ${min} and ${max}`);
   return v;
+}
+
+/** An optional enum field: absent stays absent, present must be one of `values`. */
+function oneOf<T extends string>(
+  v: unknown,
+  values: readonly T[],
+  field: string,
+): { [k: string]: T } {
+  if (v === undefined) return {};
+  if (!values.includes(v as T)) throw invalid(`"${field}" is not valid`);
+  return { [field]: v as T };
+}
+
+/** An optional link: absent stays absent, null unbinds, otherwise `{id, u, v}` with u, v in 0..1. */
+function link(v: unknown, field: string): { [k: string]: Link | null } {
+  if (v === undefined) return {};
+  if (v === null) return { [field]: null };
+  if (!isObject(v)) throw invalid(`"${field}" must be a link`);
+  return {
+    [field]: {
+      id: str(v.id, `${field}.id`, 64),
+      u: inRange(num(v.u, `${field}.u`), 0, 1, `${field}.u`),
+      v: inRange(num(v.v, `${field}.v`), 0, 1, `${field}.v`),
+    },
+  };
 }
 
 export function validateNickname(v: unknown): string {
@@ -151,6 +177,7 @@ export function validateElement(input: unknown): BoardElement {
     updatedAt: num(input.updatedAt, 'element.updatedAt'),
     z: typeof input.z === 'number' ? input.z : 0,
     ...(input.deleted === true ? { deleted: true as const } : {}),
+    ...(typeof input.group === 'string' ? { group: str(input.group, 'element.group', 64) } : {}),
   };
 
   switch (input.kind) {
@@ -198,6 +225,12 @@ export function validateElement(input: unknown): BoardElement {
               ),
             }
           : null),
+        ...oneOf(input.headStart, MARKERS, 'headStart'),
+        ...oneOf(input.headEnd, MARKERS, 'headEnd'),
+        ...oneOf(input.route, ROUTES, 'route'),
+        ...oneOf(input.dash, DASHES, 'dash'),
+        ...link(input.fromLink, 'fromLink'),
+        ...link(input.toLink, 'toLink'),
       };
     }
     case 'text': {
