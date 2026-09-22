@@ -228,6 +228,7 @@ export function validateElement(input: unknown): BoardElement {
         ...oneOf(input.headStart, MARKERS, 'headStart'),
         ...oneOf(input.headEnd, MARKERS, 'headEnd'),
         ...oneOf(input.route, ROUTES, 'route'),
+        ...(input.bend !== undefined ? { bend: num(input.bend, 'bend') } : null),
         ...oneOf(input.dash, DASHES, 'dash'),
         ...link(input.fromLink, 'fromLink'),
         ...link(input.toLink, 'toLink'),

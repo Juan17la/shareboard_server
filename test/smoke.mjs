@@ -106,7 +106,7 @@ const el = (id, extra) => ({
   id, kind: 'shape', shape: 'arrow', from: { x: 0, y: 0 }, to: { x: 10, y: 0 }, stroke: '#000000',
   strokeWidth: 2, fill: null, createdBy: creator, createdAt: now, updatedAt: now, z: 0, ...extra,
 });
-const styled = { headStart: 'circle-outline', headEnd: 'one-many', route: 'elbow', dash: 'dotted',
+const styled = { headStart: 'circle-outline', headEnd: 'one-many', route: 'elbow', dash: 'dotted', bend: 0.3,
   toLink: { id: 'txt1', u: 0.5, v: 1 }, group: 'grp1' };
 c.send(JSON.stringify({ type: 'op', boardId: id, seq: 2, ops: [{ t: 'add', el: el('arr1', styled) }] }));
 const arrow = (await g.nextOf('op')).ops[0].el;
