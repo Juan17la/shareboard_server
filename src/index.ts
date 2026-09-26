@@ -7,8 +7,12 @@ import { closeMongo, connectMongo } from './store/mongo.js';
 
 const app = await buildApp();
 
-if (config.production && !config.mongoUrl) {
-  app.log.fatal('MONGO_URL is required in production: boards would be lost on every restart');
+// Memory-only was the silent default and lost every board on restart.
+if (!config.mongoUrl && !config.memoryOnly) {
+  app.log.fatal(
+    'MONGO_URL is not set, so boards would be lost on every restart. Add it to server/.env ' +
+      '(e.g. MONGO_URL=mongodb://127.0.0.1:27017), or set MEMORY_ONLY=true for a throwaway run.',
+  );
   process.exit(1);
 }
 try {
@@ -16,7 +20,7 @@ try {
   app.log.info(
     persisted
       ? `Persistence enabled (${config.mongoDb})`
-      : 'Running in memory only — set MONGO_URL to persist boards',
+      : 'MEMORY_ONLY=true: boards are lost on restart',
   );
 } catch (err) {
   // A TLS "alert internal error" from Atlas almost always means this host's IP

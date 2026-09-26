@@ -22,8 +22,9 @@ All notable changes to the Shareboard server. The format follows
 
 - `render.yaml` Blueprint for Render; `GET /health` checks MongoDB (503 when
   unreachable) so a deploy only takes traffic once it can save.
-- `NODE_ENV=production` refuses to start without `MONGO_URL`; a failed
-  connection exits with a hint about Atlas Network Access.
+- `MONGO_URL` is required: the server used to fall back to memory silently,
+  and every board was "not found" after a restart. `MEMORY_ONLY=true` opts out
+  explicitly. A failed connection exits with a hint about Atlas Network Access.
 - `MONGO_POOL_SIZE` (20) caps connections per process; `npm run
   check:persistence` tests saving against a real MongoDB.
 
