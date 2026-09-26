@@ -1,6 +1,6 @@
 /**
- * MongoDB persistence. Optional: with no MONGO_URL the server keeps everything
- * in memory and every call here is a no-op (boards vanish on restart).
+ * MongoDB persistence. Required (see index.ts); only with MEMORY_ONLY=true is
+ * there no client, and every call here is a no-op.
  */
 import { MongoClient, type Collection } from 'mongodb';
 
@@ -21,12 +21,27 @@ export const persistenceEnabled = () => boards !== null;
 
 export async function connectMongo(): Promise<boolean> {
   if (!config.mongoUrl) return false;
-  client = new MongoClient(config.mongoUrl);
+  client = new MongoClient(config.mongoUrl, {
+    appName: 'shareboard-server',
+    maxPoolSize: config.mongoPoolSize,
+    serverSelectionTimeoutMS: 10_000,
+  });
   await client.connect();
   boards = client.db(config.mongoDb).collection<BoardDoc>('boards');
   await boards.createIndex({ shortCode: 1 }, { unique: true });
   await boards.createIndex({ updatedAt: -1 });
   return true;
+}
+
+/** Round-trip to the primary, for the health check. */
+export async function pingMongo(): Promise<boolean> {
+  if (!client) return false;
+  try {
+    await client.db(config.mongoDb).command({ ping: 1 });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function closeMongo(): Promise<void> {

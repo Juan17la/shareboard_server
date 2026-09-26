@@ -1,0 +1,33 @@
+# Render Blueprint (Dashboard → New → Blueprint → this repo). Secrets marked
+# `sync: false` are asked for once in the dashboard and never stored here.
+services:
+  - type: web
+    name: shareboard-server
+    # Deploys follow main; develop is work in progress.
+    branch: main
+    runtime: node
+    plan: free
+    # --include=dev: tsc is a devDependency and NODE_ENV=production would skip it.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    # A deploy only takes traffic once /health reaches MongoDB; the old
+    # instance then gets SIGTERM and flushes its boards before exiting.
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Atlas: Network Access must allow Render (0.0.0.0/0, or the service's
+      # outbound IPs from its Connect tab), or the TLS handshake is refused.
+      - key: MONGO_URL
+        sync: false
+      - key: MONGO_DB
+        value: shareboard
+      - key: TOKEN_SECRET
+        generateValue: true
+      # The web app's URL, e.g. https://shareboard-web.onrender.com ("*" allows any).
+      - key: CORS_ORIGIN
+        sync: false
+      - key: AI_PROVIDER
+        value: gemini
+      - key: AI_API_KEY
+        sync: false
