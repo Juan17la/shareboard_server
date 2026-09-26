@@ -1,7 +1,6 @@
 /**
- * MongoDB persistence. Optional in development: with no MONGO_URL the server
- * keeps everything in memory and every call here is a no-op (boards vanish on
- * restart). Production refuses to start without it (see index.ts).
+ * MongoDB persistence. Required (see index.ts); only with MEMORY_ONLY=true is
+ * there no client, and every call here is a no-op.
  */
 import { MongoClient, type Collection } from 'mongodb';
 
