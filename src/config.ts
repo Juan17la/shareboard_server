@@ -7,10 +7,11 @@ export const config = {
   /** '*' or a comma-separated origin list. */
   corsOrigin: env.CORS_ORIGIN ?? '*',
   tokenSecret: env.TOKEN_SECRET ?? 'dev-secret-change-me',
-  /** Empty means memory-only: boards are not persisted. Required when NODE_ENV=production. */
-  mongoUrl: env.MONGO_URL ?? '',
+  /** Required: the server refuses to start without it unless MEMORY_ONLY=true. */
+  mongoUrl: env.MONGO_URL?.trim() ?? '',
   mongoDb: env.MONGO_DB ?? 'shareboard',
-  production: env.NODE_ENV === 'production',
+  /** Throwaway runs only: boards vanish on every restart. */
+  memoryOnly: env.MEMORY_ONLY === 'true',
   /** Connections per server process. The driver's default (100) is far more than one instance needs. */
   mongoPoolSize: Number(env.MONGO_POOL_SIZE ?? 20),
 

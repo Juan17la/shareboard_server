@@ -29,6 +29,9 @@ export interface ActiveBoard {
   saving?: Promise<void>;
 }
 
+// ponytail: the live copy of a board lives in one process. Scaling out needs
+// sticky routing by board id (so one instance owns it) plus hub.ts over Redis;
+// the write-behind to Mongo below stays as it is.
 const active = new Map<string, ActiveBoard>();
 /** Cold loads in flight: two sockets joining a cold board must share one object. */
 const loading = new Map<string, Promise<ActiveBoard>>();
