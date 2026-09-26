@@ -3,6 +3,8 @@
 services:
   - type: web
     name: shareboard-server
+    # Deploys follow main; develop is work in progress.
+    branch: main
     runtime: node
     plan: free
     # --include=dev: tsc is a devDependency and NODE_ENV=production would skip it.
