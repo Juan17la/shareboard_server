@@ -4,13 +4,14 @@
  */
 import type { FastifyInstance } from 'fastify';
 
+import { draw } from '../ai.js';
 import { config } from '../config.js';
 import { AppError, forbidden, notFound } from '../errors.js';
-import { visibleElements } from '../model/ops.js';
+import { applyOps, isOverElementLimit, visibleElements } from '../model/ops.js';
 import { CloseCode } from '../model/protocol.js';
-import { roleFor } from '../model/rules.js';
+import { canEdit, roleFor } from '../model/rules.js';
 import { isValidShortCode, normalizeShortCode } from '../model/short-code.js';
-import type { BoardSnapshot, Participant } from '../model/types.js';
+import type { BoardSnapshot, Op, Participant, Point } from '../model/types.js';
 import {
   validateCreateBoard,
   validateJoin,
@@ -169,6 +170,44 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
     };
     return snapshot;
   });
+
+  /**
+   * "Draw with AI". The drawing lands centred on `at` (the caller's viewport
+   * centre) and reaches every client as ordinary ops, sent `from: 'ai'` so the
+   * caller applies them too instead of taking them for its own echo.
+   */
+  app.post<{ Params: { id: string }; Body: { prompt?: unknown; at?: Point } }>(
+    '/boards/:id/ai',
+    async (req) => {
+      const board = await store.getBoard(req.params.id);
+      const { userId } = tokenFor(req, board.meta.id);
+      if (!canEdit(board.meta, userId)) throw forbidden('You do not have edit permission on this board');
+      if (!allow(`ai:${userId}`, config.aiPerMinute, 60_000)) {
+        throw new AppError('RATE_LIMITED', 'Too many AI requests, wait a minute');
+      }
+
+      const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 1000) : '';
+      if (!prompt) throw new AppError('VALIDATION', 'Say what to draw');
+      const at = req.body?.at;
+      const center =
+        typeof at?.x === 'number' && typeof at.y === 'number' && Number.isFinite(at.x + at.y)
+          ? at
+          : { x: 0, y: 0 };
+
+      const { reply, elements } = await draw(prompt, userId, center);
+      if (elements.length > 0) {
+        if (isOverElementLimit(board.elements, elements.length)) {
+          throw new AppError('VALIDATION', 'This board has reached its element limit');
+        }
+        const ops: Op[] = elements.map((el) => ({ t: 'add', el }));
+        board.topZ = applyOps(board.elements, ops, board.topZ);
+        board.seq += 1;
+        store.touch(board);
+        hub.broadcast(board.meta.id, { type: 'op', ops, from: 'ai', seq: board.seq });
+      }
+      return { reply, added: elements.length };
+    },
+  );
 
   /** Import always creates a new board; a shared one is never overwritten. */
   app.post<{ Body: { snapshot?: unknown; creatorId?: unknown } }>(
