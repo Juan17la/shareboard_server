@@ -1,6 +1,9 @@
 /**
- * Active boards live in memory; MongoDB is only touched when a board goes cold
- * or on the periodic safety flush (docs/06-loading-exporting).
+ * Active boards live in memory and are written behind to MongoDB: a new board
+ * is saved before its id is handed out, and every change is saved within
+ * `config.writeDelayMs`, so a crash or redeploy loses at most that window.
+ * Bursts of edits to one board coalesce into one write, and writes to a board
+ * never overlap (an older snapshot can't land after a newer one).
  */
 import { randomUUID } from 'node:crypto';
 
@@ -20,9 +23,18 @@ export interface ActiveBoard {
   topZ: number;
   lastActivityAt: number;
   dirty: boolean;
+  /** Pending write-behind timer. */
+  saveTimer?: NodeJS.Timeout;
+  /** The write in flight, if any. */
+  saving?: Promise<void>;
 }
 
+// ponytail: the live copy of a board lives in one process. Scaling out needs
+// sticky routing by board id (so one instance owns it) plus hub.ts over Redis;
+// the write-behind to Mongo below stays as it is.
 const active = new Map<string, ActiveBoard>();
+/** Cold loads in flight: two sockets joining a cold board must share one object. */
+const loading = new Map<string, Promise<ActiveBoard>>();
 const codeIndex = new Map<string, string>();
 
 function toDoc(board: ActiveBoard): db.BoardDoc {
@@ -50,11 +62,19 @@ function remember(board: ActiveBoard): ActiveBoard {
   return board;
 }
 
+function forget(board: ActiveBoard): void {
+  clearTimeout(board.saveTimer);
+  board.saveTimer = undefined;
+  active.delete(board.meta.id);
+  codeIndex.delete(board.meta.shortCode);
+}
+
 /** Marks the board changed so the next flush persists it. */
 export function touch(board: ActiveBoard): void {
   board.lastActivityAt = Date.now();
   board.dirty = true;
   board.meta.updatedAt = board.lastActivityAt;
+  board.saveTimer ??= setTimeout(() => void flush(board), config.writeDelayMs);
 }
 
 export async function createBoard(input: {
@@ -94,8 +114,14 @@ export async function createBoard(input: {
     dirty: true,
   };
 
+  // Saved before anyone gets its id: a board that exists is always in the db.
   remember(board);
-  await flush(board);
+  try {
+    await save(board);
+  } catch (err) {
+    forget(board);
+    throw err;
+  }
   return board;
 }
 
@@ -104,9 +130,18 @@ export async function getBoard(id: string): Promise<ActiveBoard> {
   const hot = active.get(id);
   if (hot) return hot;
 
-  const doc = await db.findBoard(id);
-  if (!doc) throw notFound();
-  return remember(fromDoc(doc));
+  let pending = loading.get(id);
+  if (!pending) {
+    pending = db
+      .findBoard(id)
+      .then((doc) => {
+        if (!doc) throw notFound();
+        return remember(fromDoc(doc));
+      })
+      .finally(() => loading.delete(id));
+    loading.set(id, pending);
+  }
+  return pending;
 }
 
 export async function resolveShortCode(shortCode: string): Promise<string> {
@@ -121,8 +156,9 @@ export async function resolveShortCode(shortCode: string): Promise<string> {
 
 /** Drops the board everywhere: memory, code index and (if enabled) Mongo. */
 export async function deleteBoard(board: ActiveBoard): Promise<void> {
-  active.delete(board.meta.id);
-  codeIndex.delete(board.meta.shortCode);
+  forget(board);
+  // Let an in-flight save land first so it can't bring the board back.
+  while (board.saving) await board.saving.catch(() => {});
   await db.deleteBoard(board.meta.id);
 }
 
@@ -137,30 +173,50 @@ export function participantList(board: ActiveBoard): Participant[] {
   return [...board.participants.values()];
 }
 
-export async function flush(board: ActiveBoard): Promise<void> {
-  if (!board.dirty || !db.persistenceEnabled()) return;
-  await db.saveBoard(toDoc(board));
+/** Writes the board now. Throws if the write fails. */
+async function save(board: ActiveBoard): Promise<void> {
+  clearTimeout(board.saveTimer);
+  board.saveTimer = undefined;
+  while (board.saving) await board.saving.catch(() => {});
+  // A deleted (or evicted) board object must never be written back.
+  if (!board.dirty || active.get(board.meta.id) !== board || !db.persistenceEnabled()) return;
+  // Cleared before the write: a change made while it is in flight re-dirties it.
   board.dirty = false;
+  board.saving = db.saveBoard(toDoc(board));
+  try {
+    await board.saving;
+  } catch (err) {
+    board.dirty = true;
+    throw err;
+  } finally {
+    board.saving = undefined;
+  }
 }
 
-/** Persists dirty boards and evicts the ones that have been idle too long. */
+/** Background save: never throws, retries on the next tick when Mongo fails. */
+export async function flush(board: ActiveBoard): Promise<void> {
+  try {
+    await save(board);
+  } catch (err) {
+    console.error(`Saving board ${board.meta.id} failed, retrying`, err);
+    board.saveTimer ??= setTimeout(() => void flush(board), config.retryDelayMs);
+  }
+}
+
+/** Evicts boards nobody is on that have been idle too long. */
 async function sweep(): Promise<void> {
   const now = Date.now();
   for (const board of active.values()) {
     const idle = now - board.lastActivityAt;
-    if (idle < config.idleFlushMs) {
-      await flush(board);
-      continue;
-    }
-    if (board.participants.size > 0) continue;
+    if (idle < config.idleFlushMs || board.participants.size > 0) continue;
     await flush(board);
-    active.delete(board.meta.id);
-    codeIndex.delete(board.meta.shortCode);
+    // Keep it in memory until its changes are safely stored.
+    if (!board.dirty) forget(board);
   }
 }
 
 export function startSweeper(): NodeJS.Timeout {
-  return setInterval(() => void sweep(), config.safetyFlushMs).unref();
+  return setInterval(() => void sweep(), config.sweepMs).unref();
 }
 
 /** Ordered shutdown: persist everything still dirty. */

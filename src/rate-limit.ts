@@ -1,4 +1,7 @@
-/** Fixed-window counters kept in memory. Enough to blunt spam and PIN guessing. */
+/**
+ * Fixed-window counters kept in memory. Enough to blunt spam and PIN guessing.
+ * ponytail: per process; with several instances move `allow` to Redis INCR + PEXPIRE.
+ */
 const windows = new Map<string, { count: number; resetAt: number }>();
 
 /** Returns false when `key` has already used up `limit` hits in the window. */

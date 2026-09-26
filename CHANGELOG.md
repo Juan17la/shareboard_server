@@ -7,6 +7,27 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Boards are no longer lost on restart or redeploy.** A new board is saved
+  to MongoDB before its id is returned, and every change within
+  `WRITE_DELAY_MS` (1 s; bursts share one write) instead of every 2 minutes.
+  Writes to a board never overlap, a failed write is retried, and a board
+  stays in memory until its changes are stored.
+- Two clients opening the same cold board at once now share one copy (they
+  could split across two, and one side's edits were lost).
+- A board deleted while a save was pending could be written back.
+
+### Added
+
+- `render.yaml` Blueprint for Render; `GET /health` checks MongoDB (503 when
+  unreachable) so a deploy only takes traffic once it can save.
+- `MONGO_URL` is required: the server used to fall back to memory silently,
+  and every board was "not found" after a restart. `MEMORY_ONLY=true` opts out
+  explicitly. A failed connection exits with a hint about Atlas Network Access.
+- `MONGO_POOL_SIZE` (20) caps connections per process; `npm run
+  check:persistence` tests saving against a real MongoDB.
+
 ## [1.0.0-beta.1] - 2026-09-25
 
 First public beta.
