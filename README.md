@@ -16,7 +16,24 @@ npm run dev                  # http://localhost:3000
 ```
 
 With no `MONGO_URL` the server runs in memory only and boards are lost on
-restart. Set it to enable persistence.
+restart. Set it to enable persistence (`NODE_ENV=production` requires it).
+
+Boards are served from memory and written behind to MongoDB: a new board is
+saved before `POST /boards` answers, and every change is saved within
+`WRITE_DELAY_MS` (1 s), so a crash or redeploy loses at most that window.
+
+## Deploy (Render)
+
+`render.yaml` is a Blueprint: Dashboard → New → Blueprint → this repo, then
+fill `MONGO_URL`, `CORS_ORIGIN` and `AI_API_KEY`. On MongoDB Atlas, add Render
+under **Network Access** (`0.0.0.0/0`, or the service's outbound IPs) — without
+it the connection fails with `tlsv1 alert internal error` (SSL alert 80) and
+the server exits. `GET /health` answers 503 until the database does, so a
+deploy only takes traffic once it can save boards.
+
+One instance holds each board in memory, so run a single instance. Past a few
+hundred concurrent users, scale out with sticky routing by board id plus a
+pub/sub (e.g. Redis) between instances.
 
 ## REST
 

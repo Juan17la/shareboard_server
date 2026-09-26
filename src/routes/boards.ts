@@ -21,6 +21,7 @@ import {
 import { hashPin, verifyPin } from '../pin.js';
 import { allow } from '../rate-limit.js';
 import * as store from '../store/boards.js';
+import { persistenceEnabled, pingMongo } from '../store/mongo.js';
 import { issueBoardToken } from '../tokens.js';
 import * as hub from '../ws/hub.js';
 import { PRESENCE_COLORS } from '../model/types.js';
@@ -32,7 +33,11 @@ function assertCreator(board: store.ActiveBoard, userId: string): void {
 }
 
 export async function boardRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/health', async () => ({ ok: true }));
+  // Render's health check: a deploy only takes traffic once the db answers.
+  app.get('/health', async (_req, reply) => {
+    const db = persistenceEnabled() ? await pingMongo() : null;
+    return reply.code(db === false ? 503 : 200).send({ ok: db !== false, db });
+  });
 
   app.post('/boards', async (req, reply) => {
     if (!allow(`create:${req.ip}`, config.createBoardPerHour, 3_600_000)) {

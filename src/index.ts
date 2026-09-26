@@ -7,12 +7,26 @@ import { closeMongo, connectMongo } from './store/mongo.js';
 
 const app = await buildApp();
 
-const persisted = await connectMongo();
-app.log.info(
-  persisted
-    ? `Persistence enabled (${config.mongoDb})`
-    : 'Running in memory only — set MONGO_URL to persist boards',
-);
+if (config.production && !config.mongoUrl) {
+  app.log.fatal('MONGO_URL is required in production: boards would be lost on every restart');
+  process.exit(1);
+}
+try {
+  const persisted = await connectMongo();
+  app.log.info(
+    persisted
+      ? `Persistence enabled (${config.mongoDb})`
+      : 'Running in memory only — set MONGO_URL to persist boards',
+  );
+} catch (err) {
+  // A TLS "alert internal error" from Atlas almost always means this host's IP
+  // is not in the cluster's Network Access list.
+  app.log.fatal(
+    err,
+    'Cannot reach MongoDB. On Atlas, allow this server under Network Access (Render: 0.0.0.0/0 or the service\'s outbound IPs).',
+  );
+  process.exit(1);
+}
 
 startSweeper();
 startRateLimitCleanup();
