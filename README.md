@@ -15,12 +15,17 @@ npm install
 npm run dev                  # http://localhost:3000
 ```
 
-With no `MONGO_URL` the server runs in memory only and boards are lost on
-restart. Set it to enable persistence (`NODE_ENV=production` requires it).
+`MONGO_URL` is required: without it the server exits with a message instead of
+silently keeping boards in memory, where a restart would lose them. A local
+`mongod` (`mongodb://127.0.0.1:27017`) or a free Atlas cluster both work.
+`MEMORY_ONLY=true` is the explicit opt-out for throwaway runs.
 
 Boards are served from memory and written behind to MongoDB: a new board is
 saved before `POST /boards` answers, and every change is saved within
-`WRITE_DELAY_MS` (1 s), so a crash or redeploy loses at most that window.
+`WRITE_DELAY_MS` (1 s), so a crash or redeploy loses at most that window. A
+board stays in memory while anyone is on it and for 5 minutes after the last
+change, and it only leaves memory once it is stored; after that it is loaded
+back from MongoDB on the next visit.
 
 ## Deploy (Render)
 
@@ -31,9 +36,12 @@ it the connection fails with `tlsv1 alert internal error` (SSL alert 80) and
 the server exits. `GET /health` answers 503 until the database does, so a
 deploy only takes traffic once it can save boards.
 
-One instance holds each board in memory, so run a single instance. Past a few
-hundred concurrent users, scale out with sticky routing by board id plus a
-pub/sub (e.g. Redis) between instances.
+One instance holds each board in memory, so run a single instance (plenty for
+~100 users). To scale out with Redis, three per-process pieces change, each
+marked `ponytail:` in the code: `ws/hub.ts` broadcasts over a Redis channel per
+board, `rate-limit.ts` counts with `INCR`/`PEXPIRE`, and the load balancer
+routes each board id to one instance (sticky) so `store/boards.ts` keeps a
+single live copy. MongoDB stays the source of truth.
 
 ## REST
 
