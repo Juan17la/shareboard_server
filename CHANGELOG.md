@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.0.0-beta.2] - 2026-09-26
+
 ### Fixed
 
 - **Boards are no longer lost on restart or redeploy.** A new board is saved
