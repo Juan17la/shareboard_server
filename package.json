@@ -10,7 +10,8 @@
     "start": "node --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "smoke": "node test/smoke.mjs",
-    "check:ai": "node --import tsx test/ai.mjs"
+    "check:ai": "node --import tsx test/ai.mjs",
+    "check:persistence": "node --import tsx test/persistence.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
@@ -23,5 +24,8 @@
     "@types/ws": "^8.18.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
