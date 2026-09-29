@@ -36,7 +36,10 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
   // Render's health check: a deploy only takes traffic once the db answers.
   app.get('/health', async (_req, reply) => {
     const db = persistenceEnabled() ? await pingMongo() : null;
-    return reply.code(db === false ? 503 : 200).send({ ok: db !== false, db });
+    // `npm start` sets npm_package_version: release.sh waits for it to show the
+    // released version before it builds an app that needs this server.
+    const version = process.env.npm_package_version ?? null;
+    return reply.code(db === false ? 503 : 200).send({ ok: db !== false, db, version });
   });
 
   app.post('/boards', async (req, reply) => {
