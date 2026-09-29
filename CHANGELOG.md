@@ -9,6 +9,22 @@ All notable changes to the Shareboard server. The format follows
 
 ### Added
 
+- `/health` also reports the running `version`, so a release can wait until the
+  new server is the one answering before the app that needs it is built.
+
+- Nicknames may be 40 characters long (was 24), so full names with two
+  surnames are no longer refused or cut.
+
+- Selection locks: a `select` message holds elements for its sender (first
+  come, first served; carried as `Participant.selection`); an edit to an
+  element someone else holds is dropped and its sender gets the element's
+  current state back (`op` from `server`). Leaving releases the hold.
+
+### Fixed
+
+- A WebSocket message of an unknown type is ignored instead of being handled
+  as a cursor.
+
 - `font` (`sans` | `serif` | `mono` | `hand`) on text and shape labels.
 
 - Element model: `polygon` shapes with `sides` (3–12), `rotation` (radians)
