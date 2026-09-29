@@ -9,6 +9,10 @@ All notable changes to the Shareboard server. The format follows
 
 ### Added
 
+- Element model: `polygon` shapes with `sides` (3–12), `rotation` (radians)
+  on any element, `width` (wrap width) on text; the font size limit is now
+  400. The AI can draw polygons.
+
 - `POST /boards/:id/ai` with `preview: true` returns the drawing's elements
   without adding them, for the apps' accept/discard preview. Without it the
   old behaviour (added and broadcast) is kept for apps up to 1.0.0-beta.4.
