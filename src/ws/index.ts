@@ -9,7 +9,7 @@ import { AppError } from '../errors.js';
 import { applyOps, isOverElementLimit, visibleElements } from '../model/ops.js';
 import { CloseCode, REALTIME, type ClientMessage, type ServerMessage } from '../model/protocol.js';
 import { canEdit, roleFor } from '../model/rules.js';
-import { PRESENCE_COLORS, type Participant } from '../model/types.js';
+import { LIMITS, PRESENCE_COLORS, type Participant } from '../model/types.js';
 import { validateNickname, validateOps } from '../model/validate.js';
 import { allow } from '../rate-limit.js';
 import * as store from '../store/boards.js';
@@ -91,7 +91,23 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
           throw new AppError('RATE_LIMITED', 'Slow down');
         }
 
-        const ops = validateOps(msg.ops);
+        let ops = validateOps(msg.ops);
+        // Elements someone else holds (has selected) are theirs until let go:
+        // an edit to one is dropped, and the sender gets its current state
+        // back so its optimistic copy snaps back — no error, the board goes on.
+        const held = heldByOthers(board);
+        const refused = new Set(
+          ops.flatMap((op) => ((op.t === 'update' || op.t === 'delete') && held.has(op.id) ? [op.id] : [])),
+        );
+        if (refused.size) {
+          ops = ops.filter((op) => !((op.t === 'update' || op.t === 'delete') && refused.has(op.id)));
+          const current = [...refused].flatMap((id) => {
+            const el = board.elements.get(id);
+            return el ? [{ t: 'add' as const, el }] : [];
+          });
+          send({ type: 'op', ops: current, from: 'server', seq: board.seq });
+          if (!ops.length) return;
+        }
         const added = ops.filter((op) => op.t === 'add').length;
         if (isOverElementLimit(board.elements, added)) {
           throw new AppError('VALIDATION', 'This board has reached its element limit');
@@ -102,6 +118,39 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         store.touch(board);
         // Echoed to the sender too, so it can confirm against the board seq.
         hub.broadcast(board.meta.id, { type: 'op', ops, from: auth!.userId, seq: board.seq });
+      }
+
+      /** Ids selected by anyone but this socket's user. */
+      function heldByOthers(board: store.ActiveBoard): Set<string> {
+        const held = new Set<string>();
+        for (const p of board.participants.values()) {
+          if (p.userId !== auth!.userId) for (const id of p.selection ?? []) held.add(id);
+        }
+        return held;
+      }
+
+      async function onSelect(msg: Extract<ClientMessage, { type: 'select' }>) {
+        const board = await store.getBoard(boardId!);
+        const you = board.participants.get(auth!.userId);
+        if (!you) return;
+        // First come, first served: what someone else already holds is not
+        // taken; the broadcast tells the sender what it actually got.
+        const held = heldByOthers(board);
+        const ids = Array.isArray(msg.ids)
+          ? [...new Set(msg.ids)]
+              .filter((id): id is string => typeof id === 'string' && board.elements.has(id) && !held.has(id))
+              .slice(0, LIMITS.maxElements)
+          : [];
+        // Viewers look but never hold: their selection would lock editors out.
+        const next = canEdit(board.meta, you.userId) ? ids : [];
+        const before = you.selection ?? [];
+        if (next.length === before.length && next.every((id, i) => id === before[i])) return;
+        if (next.length) you.selection = next;
+        else delete you.selection;
+        hub.broadcast(board.meta.id, {
+          type: 'participants',
+          participants: store.participantList(board),
+        });
       }
 
       async function onCursor(msg: Extract<ClientMessage, { type: 'cursor' }>) {
@@ -142,8 +191,13 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
           return;
         }
 
-        const handler =
-          msg.type === 'join' ? onJoin(msg) : msg.type === 'op' ? onOp(msg) : onCursor(msg);
+        const handlers = { join: onJoin, op: onOp, cursor: onCursor, select: onSelect } as const;
+        const run = handlers[msg.type as keyof typeof handlers] as
+          | ((m: ClientMessage) => Promise<void>)
+          | undefined;
+        // A message type this server does not know (a newer client) is ignored.
+        if (!run) return;
+        const handler = run(msg);
 
         handler.catch((err: unknown) => {
           if (err instanceof AppError) {
