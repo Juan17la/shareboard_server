@@ -7,6 +7,13 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `POST /boards/:id/ai` with `preview: true` returns the drawing's elements
+  without adding them, for the apps' accept/discard preview. Without it the
+  old behaviour (added and broadcast) is kept for apps up to 1.0.0-beta.4.
+- Everything one AI answer draws shares a group, so it selects and moves as one.
+
 ### Changed
 
 - Short codes are also accepted with the `·` (or `.`) separator the apps now
