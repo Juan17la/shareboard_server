@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.1.0-beta] - 2026-09-29
+
 ### Added
 
 - `/health` also reports the running `version`, so a release can wait until the
