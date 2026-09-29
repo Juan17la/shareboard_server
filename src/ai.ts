@@ -152,6 +152,11 @@ export function toElements(content: string, userId: string, at: Point): DrawResu
     elements.push(el);
   }
   for (const [line, item] of lines) connect(line, figures.get(item.from), figures.get(item.to));
+  // One drawing moves as one: select any part and the whole picture comes along.
+  if (elements.length > 1) {
+    const group = `ai_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    for (const el of elements) el.group = group;
+  }
 
   return {
     reply: typeof parsed.reply === 'string' ? parsed.reply.slice(0, 500) : '',
