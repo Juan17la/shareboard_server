@@ -3,7 +3,7 @@
  * Throws `AppError('VALIDATION')`; limits come from `LIMITS`.
  */
 import { invalid } from '../errors.js';
-import { DASHES, LIMITS, MARKERS, ROUTES } from './types.js';
+import { DASHES, FONTS, LIMITS, MARKERS, ROUTES } from './types.js';
 import type {
   BoardAccess,
   BoardElement,
@@ -236,6 +236,7 @@ export function validateElement(input: unknown): BoardElement {
               ),
             }
           : null),
+        ...oneOf(input.font, FONTS, 'font'),
         ...oneOf(input.headStart, MARKERS, 'headStart'),
         ...oneOf(input.headEnd, MARKERS, 'headEnd'),
         ...oneOf(input.route, ROUTES, 'route'),
@@ -262,6 +263,7 @@ export function validateElement(input: unknown): BoardElement {
         ),
         bold: input.bold === true,
         italic: input.italic === true,
+        ...oneOf(input.font, FONTS, 'font'),
         ...(input.width !== undefined && input.width !== null
           ? { width: inRange(num(input.width, 'width'), 1, 100_000, 'width') }
           : null),
