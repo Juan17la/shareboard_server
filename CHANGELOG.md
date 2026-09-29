@@ -7,6 +7,11 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Short codes are also accepted with the `·` (or `.`) separator the apps now
+  display, e.g. `ABC·DEF`.
+
 ## [1.0.0-beta.4] - 2026-09-26
 
 ### Changed
