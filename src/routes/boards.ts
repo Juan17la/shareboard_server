@@ -177,11 +177,16 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
-   * "Draw with AI". The drawing lands centred on `at` (the caller's viewport
-   * centre) and reaches every client as ordinary ops, sent `from: 'ai'` so the
-   * caller applies them too instead of taking them for its own echo.
+   * "Draw with AI". The drawing is centred on `at` (the caller's viewport
+   * centre). With `preview: true` the elements are only returned: the caller
+   * shows them and, if the user accepts, adds them as its own ops. Without it
+   * (apps up to 1.0.0-beta.4) they are applied here and reach every client as
+   * ordinary ops, sent `from: 'ai'` so the caller doesn't take them for its echo.
    */
-  app.post<{ Params: { id: string }; Body: { prompt?: unknown; at?: Point } }>(
+  app.post<{
+    Params: { id: string };
+    Body: { prompt?: unknown; at?: Point; preview?: unknown };
+  }>(
     '/boards/:id/ai',
     async (req) => {
       const board = await store.getBoard(req.params.id);
@@ -200,6 +205,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
           : { x: 0, y: 0 };
 
       const { reply, elements } = await draw(prompt, userId, center);
+      if (req.body?.preview === true) return { reply, elements };
       if (elements.length > 0) {
         if (isOverElementLimit(board.elements, elements.length)) {
           throw new AppError('VALIDATION', 'This board has reached its element limit');
