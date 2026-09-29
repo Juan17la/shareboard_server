@@ -87,9 +87,10 @@ assert.deepEqual(
   'odd trailing coordinate dropped, offset applied',
 );
 assert.ok(
-  elements.every((e) => e.group === undefined && e.createdBy === 'user_1'),
-  'not grouped',
+  elements.every((e) => e.group === elements[0].group && e.createdBy === 'user_1'),
+  'one drawing is one group',
 );
+assert.match(elements[0].group, /^ai_[0-9a-f]{12}$/);
 
 // Rect centre (1000, 1050), circle centre (1250, 1050): the arrow leaves the
 // rect's right edge and lands on the circle's left edge, bound to both.
