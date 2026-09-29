@@ -12,9 +12,9 @@ export function generateShortCode(): string {
   return code;
 }
 
-/** Uppercases and strips separators the user may have typed. */
+/** Uppercases and strips separators the user may have typed (incl. the display `·`). */
 export function normalizeShortCode(input: string): string {
-  return input.trim().toUpperCase().replace(/[\s-]/g, '');
+  return input.trim().toUpperCase().replace(/[\s\-·.]/g, '');
 }
 
 export function isValidShortCode(input: string): boolean {
