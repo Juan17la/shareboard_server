@@ -9,6 +9,8 @@ All notable changes to the Shareboard server. The format follows
 
 ### Added
 
+- `font` (`sans` | `serif` | `mono` | `hand`) on text and shape labels.
+
 - Element model: `polygon` shapes with `sides` (3–12), `rotation` (radians)
   on any element, `width` (wrap width) on text; the font size limit is now
   400. The AI can draw polygons.
