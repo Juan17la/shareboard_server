@@ -80,7 +80,7 @@ assert.deepEqual(
 assert.equal(rect.fill, null, 'a named colour is not #RRGGBB, so no fill');
 assert.equal(rect.strokeWidth, 64, 'width clamped to the limit');
 assert.equal(tri.stroke, '#1B2030', 'bad colour falls back to ink');
-assert.equal(text.fontSize, 96);
+assert.equal(text.fontSize, 400, "size clamped to LIMITS.maxFontSize");
 assert.deepEqual(
   path.points,
   [600, 700, 610, 710],
