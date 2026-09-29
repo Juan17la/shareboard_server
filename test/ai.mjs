@@ -80,16 +80,17 @@ assert.deepEqual(
 assert.equal(rect.fill, null, 'a named colour is not #RRGGBB, so no fill');
 assert.equal(rect.strokeWidth, 64, 'width clamped to the limit');
 assert.equal(tri.stroke, '#1B2030', 'bad colour falls back to ink');
-assert.equal(text.fontSize, 96);
+assert.equal(text.fontSize, 400, "size clamped to LIMITS.maxFontSize");
 assert.deepEqual(
   path.points,
   [600, 700, 610, 710],
   'odd trailing coordinate dropped, offset applied',
 );
 assert.ok(
-  elements.every((e) => e.group === undefined && e.createdBy === 'user_1'),
-  'not grouped',
+  elements.every((e) => e.group === elements[0].group && e.createdBy === 'user_1'),
+  'one drawing is one group',
 );
+assert.match(elements[0].group, /^ai_[0-9a-f]{12}$/);
 
 // Rect centre (1000, 1050), circle centre (1250, 1050): the arrow leaves the
 // rect's right edge and lands on the circle's left edge, bound to both.

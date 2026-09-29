@@ -7,6 +7,42 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.1.0-beta] - 2026-09-29
+
+### Added
+
+- `/health` also reports the running `version`, so a release can wait until the
+  new server is the one answering before the app that needs it is built.
+
+- Nicknames may be 40 characters long (was 24), so full names with two
+  surnames are no longer refused or cut.
+
+- Selection locks: a `select` message holds elements for its sender (first
+  come, first served; carried as `Participant.selection`); an edit to an
+  element someone else holds is dropped and its sender gets the element's
+  current state back (`op` from `server`). Leaving releases the hold.
+
+### Fixed
+
+- A WebSocket message of an unknown type is ignored instead of being handled
+  as a cursor.
+
+- `font` (`sans` | `serif` | `mono` | `hand`) on text and shape labels.
+
+- Element model: `polygon` shapes with `sides` (3–12), `rotation` (radians)
+  on any element, `width` (wrap width) on text; the font size limit is now
+  400. The AI can draw polygons.
+
+- `POST /boards/:id/ai` with `preview: true` returns the drawing's elements
+  without adding them, for the apps' accept/discard preview. Without it the
+  old behaviour (added and broadcast) is kept for apps up to 1.0.0-beta.4.
+- Everything one AI answer draws shares a group, so it selects and moves as one.
+
+### Changed
+
+- Short codes are also accepted with the `·` (or `.`) separator the apps now
+  display, e.g. `ABC·DEF`.
+
 ## [1.0.0-beta.4] - 2026-09-26
 
 ### Changed
