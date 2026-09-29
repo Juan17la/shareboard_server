@@ -16,7 +16,7 @@ import type {
 
 const ACCESS: BoardAccess[] = ['public', 'private'];
 const POLICIES: EditPolicy[] = ['everyone', 'selected', 'creator-only'];
-const SHAPES = ['rectangle', 'ellipse', 'triangle', 'line', 'arrow'];
+const SHAPES = ['rectangle', 'ellipse', 'triangle', 'polygon', 'line', 'arrow'];
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -44,6 +44,9 @@ function point(v: unknown, field: string): Point {
   if (!isObject(v)) throw invalid(`"${field}" must be a point`);
   return { x: num(v.x, `${field}.x`), y: num(v.y, `${field}.y`) };
 }
+
+/** Any angle is fine; wrapped to (-π, π] so the stored number stays small. */
+const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 function inRange(v: number, min: number, max: number, field: string): number {
   if (v < min || v > max) throw invalid(`"${field}" must be between ${min} and ${max}`);
@@ -178,6 +181,7 @@ export function validateElement(input: unknown): BoardElement {
     z: typeof input.z === 'number' ? input.z : 0,
     ...(input.deleted === true ? { deleted: true as const } : {}),
     ...(typeof input.group === 'string' ? { group: str(input.group, 'element.group', 64) } : {}),
+    ...(input.rotation != null ? { rotation: angle(num(input.rotation, 'rotation')) } : {}),
   };
 
   switch (input.kind) {
@@ -201,7 +205,7 @@ export function validateElement(input: unknown): BoardElement {
       return {
         ...base,
         kind: 'shape',
-        shape: input.shape as 'rectangle' | 'ellipse' | 'triangle' | 'line' | 'arrow',
+        shape: input.shape as 'rectangle' | 'ellipse' | 'triangle' | 'polygon' | 'line' | 'arrow',
         from: point(input.from, 'from'),
         to: point(input.to, 'to'),
         stroke: color(input.stroke, 'stroke'),
@@ -222,6 +226,13 @@ export function validateElement(input: unknown): BoardElement {
                 LIMITS.minFontSize,
                 LIMITS.maxFontSize,
                 'fontSize',
+              ),
+            }
+          : null),
+        ...(input.sides !== undefined
+          ? {
+              sides: Math.round(
+                inRange(num(input.sides, 'sides'), LIMITS.minSides, LIMITS.maxSides, 'sides'),
               ),
             }
           : null),
@@ -251,6 +262,9 @@ export function validateElement(input: unknown): BoardElement {
         ),
         bold: input.bold === true,
         italic: input.italic === true,
+        ...(input.width !== undefined && input.width !== null
+          ? { width: inRange(num(input.width, 'width'), 1, 100_000, 'width') }
+          : null),
       };
     }
     case 'image': {

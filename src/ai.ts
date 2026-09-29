@@ -38,6 +38,7 @@ The canvas is ${W}x${H}, origin top-left, y grows downward. Compose the whole dr
 Element types (colors are "#RRGGBB"):
 - {"type":"rectangle"|"ellipse"|"triangle","id":"a","x1":0,"y1":0,"x2":100,"y2":80,"stroke":"#1B2030","fill":"#FFD60A" or null,"width":3,"text":"optional label inside"}
   (x1,y1)-(x2,y2) is the bounding box. A triangle points up. Give every figure a short unique "id".
+- {"type":"polygon","sides":6,...same fields as a rectangle}  a regular polygon (3-12 sides: hexagon, star-like badge, stop sign…) inside its box.
 - {"type":"line"|"arrow","from":"a","to":"b","stroke":"#1B2030","width":3,"text":"optional label"}
   connects two figures by id; it stays attached when they move. Use this for every connection.
   A line not between figures uses coordinates instead: {"type":"line","x1":0,"y1":0,"x2":100,"y2":0,...}
@@ -179,6 +180,7 @@ function convert(item: Record<string, unknown>, dx: number, dy: number): object 
     case 'rectangle':
     case 'ellipse':
     case 'triangle':
+    case 'polygon':
     case 'line':
     case 'arrow':
       return {
@@ -190,6 +192,9 @@ function convert(item: Record<string, unknown>, dx: number, dy: number): object 
         strokeWidth: width(item.width),
         fill: colorOr(item.fill, '') || null,
         ...(typeof item.text === 'string' && item.text ? { text: item.text } : {}),
+        ...(item.type === 'polygon'
+          ? { sides: clamp(Math.round(n(item.sides, 6)), LIMITS.minSides, LIMITS.maxSides) }
+          : {}),
       };
     case 'text':
       if (typeof item.text !== 'string' || !item.text) return null;
