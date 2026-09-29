@@ -6,6 +6,8 @@ export type ClientMessage =
   /** `seq` is the sender's own counter, echoed back for debugging. */
   | { type: 'op'; boardId: string; ops: Op[]; seq: number }
   | { type: 'cursor'; boardId: string; at: Point }
+  /** What this client now has selected: it holds those elements (`Participant.selection`). */
+  | { type: 'select'; boardId: string; ids: string[] }
   | { type: 'leave'; boardId: string }
   | { type: 'ping'; t: number };
 
@@ -18,7 +20,11 @@ export type ServerMessage =
       you: Participant;
       seq: number;
     }
-  /** `seq` is the board-wide monotonic counter; clients apply in order. */
+  /**
+   * `seq` is the board-wide monotonic counter; clients apply in order. `from`
+   * is `'server'` for a correction: the current state of elements whose edit
+   * was refused because someone else holds them.
+   */
   | { type: 'op'; ops: Op[]; from: UserId; seq: number }
   | { type: 'participants'; participants: Participant[] }
   | { type: 'cursor'; from: UserId; at: Point }
