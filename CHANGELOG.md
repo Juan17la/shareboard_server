@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.3.1-beta] - 2026-10-01
+
 ### Changed
 
 - Nothing in this project: released alongside the mobile app's pencil fix so
