@@ -7,6 +7,30 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Shapes may carry `startAxis` / `endAxis` (an elbow's direction at each end) and
+  `curveFrom` / `curveTo` (a curve's two handles); patched and validated like the
+  other shape fields.
+
+### Changed
+
+- A polygon has at least four sides (`LIMITS.minSides`); a stored one with fewer
+  is raised into range when it loads instead of being refused.
+
+### Added
+
+- Shapes may carry `labelAt` (0..1): where a line's label stands along it. Patched
+  and validated like the other shape fields.
+
+### Fixed
+
+- An update's patch is validated key by key: wrong types are refused, numbers
+  are clamped, unknown keys are dropped (they used to be stored and broadcast
+  as sent).
+- A refused batch of ops is followed by a `resync` frame with the board as it
+  stands, so the sender no longer keeps showing changes the server never took.
+
 ## [1.1.0-beta] - 2026-09-29
 
 ### Added
