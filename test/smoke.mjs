@@ -135,6 +135,10 @@ const arrow = (await g.nextOf('op')).ops[0].el;
 for (const k of Object.keys(styled)) assert.deepEqual(arrow[k], styled[k], `${k} round-trips`);
 c.send(JSON.stringify({ type: 'op', boardId: id, seq: 3, ops: [{ t: 'add', el: el('bad', { headEnd: 'nope' }) }] }));
 assert.equal((await c.nextOf('error')).code, 'VALIDATION', 'an unknown marker is rejected');
+// The sender applied it optimistically: the board as it stands follows, so it can let go of it.
+const resync = await c.nextOf('resync');
+assert.equal(resync.type, 'resync', 'a refused batch is followed by the real board');
+assert.ok(resync.elements.some((e) => e.id === 'arr1') && !resync.elements.some((e) => e.id === 'bad'));
 c.send(JSON.stringify({ type: 'op', boardId: id, seq: 4, ops: [
   { t: 'update', id: 'txt1', patch: { z: 50 }, updatedAt: now },
   { t: 'add', el: el('arr2', {}) },

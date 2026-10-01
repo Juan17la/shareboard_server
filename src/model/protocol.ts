@@ -29,6 +29,12 @@ export type ServerMessage =
   | { type: 'participants'; participants: Participant[] }
   | { type: 'cursor'; from: UserId; at: Point }
   | { type: 'permissions'; meta: BoardMeta; you: Participant }
+  /**
+   * The board as it stands, sent after a batch of ops was rejected: the sender
+   * applied it optimistically and would otherwise keep showing what the
+   * server never accepted.
+   */
+  | { type: 'resync'; elements: BoardElement[]; seq: number }
   | { type: 'error'; code: ServerErrorCode; message: string }
   | { type: 'pong'; t: number };
 
