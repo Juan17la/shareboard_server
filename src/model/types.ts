@@ -53,6 +53,9 @@ export const MARKERS = [
 export type Marker = (typeof MARKERS)[number];
 export const ROUTES = ['straight', 'curved', 'elbow'] as const;
 export type Route = (typeof ROUTES)[number];
+/** Which way a line runs at one of an elbow's ends: across (`h`) or up and down (`v`). */
+export const AXES = ['h', 'v'] as const;
+export type Axis = (typeof AXES)[number];
 export const DASHES = ['solid', 'dashed', 'dotted'] as const;
 export type Dash = (typeof DASHES)[number];
 /** Typefaces a text or a figure's label can be set in; absent is `sans` (Nunito). */
@@ -88,6 +91,8 @@ export interface ShapeElement extends ElementBase {
   fontSize?: number;
   /** Label typeface; `sans` when absent. */
   font?: FontKey;
+  /** A line's label: how far along its route it stands, 0..1; the middle when absent. */
+  labelAt?: number;
   /** A polygon's corner count, `LIMITS.minSides`..`maxSides`; `DEFAULT_SIDES` when absent. */
   sides?: number;
   // Lines and arrows only. Absent: no start marker, an `arrow` head on an arrow.
@@ -102,6 +107,20 @@ export interface ShapeElement extends ElementBase {
    */
   bend?: number;
   dash?: Dash;
+  /**
+   * Elbow only: the direction the line leaves its start / arrives at its end
+   * along. Absent: the long axis — or, at an end bound to a side of a shape,
+   * straight out of that side. Two different axes make a single corner.
+   */
+  startAxis?: Axis;
+  endAxis?: Axis;
+  /**
+   * Curved only: where the two control points of the curve stand, as offsets
+   * from the start and from the end — the direction and pull of the line
+   * there. Absent: the original fixed bow (`bend`).
+   */
+  curveFrom?: Point;
+  curveTo?: Point;
   /** Ends bound to a shape follow it when it moves. Null: unbound. */
   fromLink?: Link | null;
   toLink?: Link | null;
@@ -190,7 +209,7 @@ export const LIMITS = {
   maxStrokeWidth: 64,
   minFontSize: 10,
   maxFontSize: 400,
-  minSides: 3,
+  minSides: 4,
   maxSides: 12,
   maxNicknameLength: 40,
   maxBoardNameLength: 80,
