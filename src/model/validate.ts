@@ -3,7 +3,7 @@
  * Throws `AppError('VALIDATION')`; limits come from `LIMITS`.
  */
 import { invalid } from '../errors.js';
-import { DASHES, FONTS, LIMITS, MARKERS, ROUTES } from './types.js';
+import { AXES, DASHES, FONTS, LIMITS, MARKERS, ROUTES } from './types.js';
 import type {
   BoardAccess,
   BoardElement,
@@ -231,9 +231,9 @@ export function validateElement(input: unknown): BoardElement {
           : null),
         ...(input.sides !== undefined
           ? {
-              sides: Math.round(
-                inRange(num(input.sides, 'sides'), LIMITS.minSides, LIMITS.maxSides, 'sides'),
-              ),
+              // Raised into range rather than refused: a polygon saved when three
+              // sides were allowed must still load.
+              sides: Math.round(clamp(num(input.sides, 'sides'), LIMITS.minSides, LIMITS.maxSides)),
             }
           : null),
         ...oneOf(input.font, FONTS, 'font'),
@@ -241,7 +241,14 @@ export function validateElement(input: unknown): BoardElement {
         ...oneOf(input.headEnd, MARKERS, 'headEnd'),
         ...oneOf(input.route, ROUTES, 'route'),
         ...(input.bend !== undefined ? { bend: num(input.bend, 'bend') } : null),
+        ...(input.labelAt !== undefined
+          ? { labelAt: inRange(num(input.labelAt, 'labelAt'), 0, 1, 'labelAt') }
+          : null),
         ...oneOf(input.dash, DASHES, 'dash'),
+        ...oneOf(input.startAxis, AXES, 'startAxis'),
+        ...oneOf(input.endAxis, AXES, 'endAxis'),
+        ...(input.curveFrom != null ? { curveFrom: point(input.curveFrom, 'curveFrom') } : null),
+        ...(input.curveTo != null ? { curveTo: point(input.curveTo, 'curveTo') } : null),
         ...link(input.fromLink, 'fromLink'),
         ...link(input.toLink, 'toLink'),
       };
@@ -284,6 +291,121 @@ export function validateElement(input: unknown): BoardElement {
   }
 }
 
+/**
+ * An update's patch, key by key. Unknown keys are dropped rather than refused
+ * (a newer client's field must not sink the whole batch); a value of the wrong
+ * type or out of range is refused or clamped, so nothing malformed reaches the
+ * stored element or every other client's renderer. `null` unsets an optional
+ * key (an undo of a key the element never had); required keys refuse it.
+ */
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+const OPTIONAL = new Set([
+  'group', 'rotation', 'fill', 'text', 'fontSize', 'sides', 'font', 'headStart', 'headEnd',
+  'route', 'bend', 'dash', 'fromLink', 'toLink', 'deleted', 'bold', 'italic', 'width', 'labelAt',
+  'startAxis', 'endAxis', 'curveFrom', 'curveTo',
+]);
+const REQUIRED = new Set([
+  'z', 'height', 'points', 'color', 'stroke', 'strokeWidth', 'from', 'to', 'at', 'shape', 'uri',
+]);
+
+export function validatePatch(raw: Record<string, unknown>): Partial<BoardElement> {
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(raw)) {
+    if (v === null) {
+      if (OPTIONAL.has(key)) out[key] = null;
+      else if (REQUIRED.has(key)) throw invalid(`"${key}" cannot be unset`);
+      continue;
+    }
+    switch (key) {
+      case 'labelAt':
+        out[key] = clamp(num(v, key), 0, 1);
+        break;
+      case 'z':
+      case 'bend':
+      case 'width':
+      case 'height':
+        out[key] = num(v, key);
+        break;
+      case 'deleted':
+        out[key] = v === true ? true : null;
+        break;
+      case 'group':
+        out[key] = str(v, key, 64);
+        break;
+      case 'rotation':
+        out[key] = angle(num(v, key));
+        break;
+      case 'points':
+        if (!Array.isArray(v) || v.length % 2 !== 0 || v.length / 2 > LIMITS.maxStrokePoints) {
+          throw invalid('"points" must be a flat [x, y, ...] array');
+        }
+        out[key] = v.map((n, i) => num(n, `points[${i}]`));
+        break;
+      case 'color':
+      case 'stroke':
+      case 'fill':
+        out[key] = color(v, key);
+        break;
+      case 'strokeWidth':
+        out[key] = clamp(num(v, key), LIMITS.minStrokeWidth, LIMITS.maxStrokeWidth);
+        break;
+      case 'fontSize':
+        out[key] = clamp(num(v, key), LIMITS.minFontSize, LIMITS.maxFontSize);
+        break;
+      case 'sides':
+        out[key] = Math.round(clamp(num(v, key), LIMITS.minSides, LIMITS.maxSides));
+        break;
+      case 'from':
+      case 'to':
+      case 'at':
+        out[key] = point(v, key);
+        break;
+      case 'text':
+        if (typeof v !== 'string' || v.length > LIMITS.maxTextLength) throw invalid('"text" is not valid');
+        out[key] = v;
+        break;
+      case 'bold':
+      case 'italic':
+        out[key] = v === true;
+        break;
+      case 'shape':
+        if (!SHAPES.includes(v as string)) throw invalid('"shape" is not a valid shape');
+        out[key] = v;
+        break;
+      case 'font':
+        Object.assign(out, oneOf(v, FONTS, key));
+        break;
+      case 'headStart':
+      case 'headEnd':
+        Object.assign(out, oneOf(v, MARKERS, key));
+        break;
+      case 'route':
+        Object.assign(out, oneOf(v, ROUTES, key));
+        break;
+      case 'dash':
+        Object.assign(out, oneOf(v, DASHES, key));
+        break;
+      case 'startAxis':
+      case 'endAxis':
+        Object.assign(out, oneOf(v, AXES, key));
+        break;
+      case 'curveFrom':
+      case 'curveTo':
+        out[key] = point(v, key);
+        break;
+      case 'fromLink':
+      case 'toLink':
+        Object.assign(out, link(v, key));
+        break;
+      case 'uri':
+        out[key] = str(v, key, 4 * 1024 * 1024);
+        break;
+      // id, kind, createdBy, createdAt, updatedAt and anything unknown: not patchable.
+    }
+  }
+  return out as Partial<BoardElement>;
+}
+
 export function validateOps(input: unknown): Op[] {
   if (!Array.isArray(input) || input.length === 0) throw invalid('"ops" must be a non-empty array');
   return input.map((raw): Op => {
@@ -296,7 +418,7 @@ export function validateOps(input: unknown): Op[] {
         return {
           t: 'update',
           id: str(raw.id, 'op.id', 64),
-          patch: raw.patch as Partial<BoardElement>,
+          patch: validatePatch(raw.patch),
           updatedAt: num(raw.updatedAt, 'op.updatedAt'),
         };
       case 'delete':
