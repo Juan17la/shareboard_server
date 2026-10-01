@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "smoke": "node test/smoke.mjs",
     "check:ai": "node --import tsx test/ai.mjs",
-    "check:persistence": "node --import tsx test/persistence.mjs"
+    "check:persistence": "node --import tsx test/persistence.mjs",
+    "check:patch": "node --import tsx test/patch.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
