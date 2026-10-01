@@ -163,6 +163,15 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         hub.broadcast(board.meta.id, { type: 'cursor', from: you.userId, at: msg.at }, you.userId);
       }
 
+      async function resync() {
+        try {
+          const board = await store.getBoard(boardId!);
+          send({ type: 'resync', elements: visibleElements(board.elements), seq: board.seq });
+        } catch {
+          // The board is gone; the error frame and the close say so.
+        }
+      }
+
       socket.on('message', (raw) => {
         lastSeenAt = Date.now();
         if (raw.toString().length > REALTIME.maxMessageBytes) {
@@ -200,6 +209,9 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         const handler = run(msg);
 
         handler.catch((err: unknown) => {
+          // A refused batch was already applied on the sender's screen: hand
+          // it the real board so it lets go of what never happened.
+          if (msg.type === 'op' && joined) void resync();
           if (err instanceof AppError) {
             send({ type: 'error', code: err.code, message: err.message });
             if (err.code === 'BOARD_NOT_FOUND') socket.close(CloseCode.NOT_FOUND, err.message);
