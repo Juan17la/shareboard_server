@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.2.0-beta] - 2026-09-30
+
 ### Added
 
 - Shapes may carry `startAxis` / `endAxis` (an elbow's direction at each end) and
