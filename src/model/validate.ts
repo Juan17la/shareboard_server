@@ -3,7 +3,7 @@
  * Throws `AppError('VALIDATION')`; limits come from `LIMITS`.
  */
 import { invalid } from '../errors.js';
-import { AXES, DASHES, FONTS, LIMITS, MARKERS, ROUTES } from './types.js';
+import { ALIGNS, AXES, DASHES, FONTS, LIMITS, MARKERS, ROUTES, VALIGNS } from './types.js';
 import type {
   BoardAccess,
   BoardElement,
@@ -182,6 +182,7 @@ export function validateElement(input: unknown): BoardElement {
     ...(input.deleted === true ? { deleted: true as const } : {}),
     ...(typeof input.group === 'string' ? { group: str(input.group, 'element.group', 64) } : {}),
     ...(input.rotation != null ? { rotation: angle(num(input.rotation, 'rotation')) } : {}),
+    ...(input.opacity != null ? { opacity: clamp(num(input.opacity, 'opacity'), 0.1, 1) } : {}),
   };
 
   switch (input.kind) {
@@ -245,6 +246,9 @@ export function validateElement(input: unknown): BoardElement {
           ? { labelAt: inRange(num(input.labelAt, 'labelAt'), 0, 1, 'labelAt') }
           : null),
         ...oneOf(input.dash, DASHES, 'dash'),
+        ...oneOf(input.align, ALIGNS, 'align'),
+        ...oneOf(input.valign, VALIGNS, 'valign'),
+        ...(input.rounded === true ? { rounded: true } : null),
         ...oneOf(input.startAxis, AXES, 'startAxis'),
         ...oneOf(input.endAxis, AXES, 'endAxis'),
         ...(input.curveFrom != null ? { curveFrom: point(input.curveFrom, 'curveFrom') } : null),
@@ -271,6 +275,7 @@ export function validateElement(input: unknown): BoardElement {
         bold: input.bold === true,
         italic: input.italic === true,
         ...oneOf(input.font, FONTS, 'font'),
+        ...oneOf(input.align, ALIGNS, 'align'),
         ...(input.width !== undefined && input.width !== null
           ? { width: inRange(num(input.width, 'width'), 1, 100_000, 'width') }
           : null),
@@ -300,8 +305,8 @@ export function validateElement(input: unknown): BoardElement {
  */
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const OPTIONAL = new Set([
-  'group', 'rotation', 'fill', 'text', 'fontSize', 'sides', 'font', 'headStart', 'headEnd',
-  'route', 'bend', 'dash', 'fromLink', 'toLink', 'deleted', 'bold', 'italic', 'width', 'labelAt',
+  'group', 'rotation', 'opacity', 'fill', 'text', 'fontSize', 'sides', 'font', 'headStart', 'headEnd',
+  'route', 'bend', 'dash', 'rounded', 'align', 'valign', 'fromLink', 'toLink', 'deleted', 'bold', 'italic', 'width', 'labelAt',
   'startAxis', 'endAxis', 'curveFrom', 'curveTo',
 ]);
 const REQUIRED = new Set([
@@ -335,6 +340,9 @@ export function validatePatch(raw: Record<string, unknown>): Partial<BoardElemen
       case 'rotation':
         out[key] = angle(num(v, key));
         break;
+      case 'opacity':
+        out[key] = clamp(num(v, key), 0.1, 1);
+        break;
       case 'points':
         if (!Array.isArray(v) || v.length % 2 !== 0 || v.length / 2 > LIMITS.maxStrokePoints) {
           throw invalid('"points" must be a flat [x, y, ...] array');
@@ -366,6 +374,7 @@ export function validatePatch(raw: Record<string, unknown>): Partial<BoardElemen
         break;
       case 'bold':
       case 'italic':
+      case 'rounded':
         out[key] = v === true;
         break;
       case 'shape':
@@ -384,6 +393,12 @@ export function validatePatch(raw: Record<string, unknown>): Partial<BoardElemen
         break;
       case 'dash':
         Object.assign(out, oneOf(v, DASHES, key));
+        break;
+      case 'align':
+        Object.assign(out, oneOf(v, ALIGNS, key));
+        break;
+      case 'valign':
+        Object.assign(out, oneOf(v, VALIGNS, key));
         break;
       case 'startAxis':
       case 'endAxis':
