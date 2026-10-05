@@ -24,6 +24,18 @@ assert.deepEqual(patch({ labelAt: null }), { labelAt: null });
 assert.deepEqual(patch({ startAxis: 'h', endAxis: 'v' }), { startAxis: 'h', endAxis: 'v' });
 assert.deepEqual(patch({ curveFrom: { x: 1, y: 2 }, curveTo: null }), { curveFrom: { x: 1, y: 2 }, curveTo: null });
 assert.deepEqual(patch({ startAxis: null, endAxis: null }), { startAxis: null, endAxis: null });
+// Opacity: clamped to 0.1..1, null unsets it.
+assert.deepEqual(patch({ opacity: 0.4 }), { opacity: 0.4 });
+assert.deepEqual(patch({ opacity: 7 }), { opacity: 1 });
+assert.deepEqual(patch({ opacity: 0 }), { opacity: 0.1 });
+assert.deepEqual(patch({ opacity: null }), { opacity: null });
+bad({ opacity: 'half' });
+assert.deepEqual(patch({ rounded: true }), { rounded: true });
+assert.deepEqual(patch({ rounded: null }), { rounded: null });
+assert.deepEqual(patch({ align: 'right', valign: 'bottom' }), { align: 'right', valign: 'bottom' });
+assert.deepEqual(patch({ align: null, valign: null }), { align: null, valign: null });
+bad({ align: 'justify' });
+bad({ valign: 'left' });
 // Not patchable / unknown: dropped, not refused.
 assert.deepEqual(patch({ id: 'x', kind: 'text', createdBy: 'me', shiny: true }), {});
 // Malformed: refused.

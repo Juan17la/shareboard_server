@@ -7,6 +7,11 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `opacity`, `rounded`, `align` and `valign` on elements (stored, validated and
+  patchable); all optional, so older clients and boards are unaffected.
+
 ## [1.3.1-beta] - 2026-10-01
 
 ### Changed
