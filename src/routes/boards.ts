@@ -180,6 +180,20 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
+   * "Draw with AI" for a board that lives only on the caller's device (an
+   * offline board, mobile/docs/plans/34): no board to check, so it is always a
+   * preview, and the limit is per address as well as per user.
+   */
+  app.post<{ Body: { prompt?: unknown; at?: Point } }>('/ai', async (req) => {
+    const userId = userIdOf(req);
+    if (!allow(`ai:${userId}`, config.aiPerMinute, 60_000) || !allow(`ai:${req.ip}`, config.aiPerMinute, 60_000)) {
+      throw new AppError('RATE_LIMITED', 'Too many AI requests, wait a minute');
+    }
+    const [prompt, at] = aiArgs(req.body);
+    return draw(prompt, userId, at);
+  });
+
+  /**
    * "Draw with AI". The drawing is centred on `at` (the caller's viewport
    * centre). With `preview: true` the elements are only returned: the caller
    * shows them and, if the user accepts, adds them as its own ops. Without it
@@ -199,15 +213,8 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
         throw new AppError('RATE_LIMITED', 'Too many AI requests, wait a minute');
       }
 
-      const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 1000) : '';
-      if (!prompt) throw new AppError('VALIDATION', 'Say what to draw');
-      const at = req.body?.at;
-      const center =
-        typeof at?.x === 'number' && typeof at.y === 'number' && Number.isFinite(at.x + at.y)
-          ? at
-          : { x: 0, y: 0 };
-
-      const { reply, elements } = await draw(prompt, userId, center);
+      const [prompt, at] = aiArgs(req.body);
+      const { reply, elements } = await draw(prompt, userId, at);
       if (req.body?.preview === true) return { reply, elements };
       if (elements.length > 0) {
         if (isOverElementLimit(board.elements, elements.length)) {
@@ -241,4 +248,12 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send(board.meta);
     },
   );
+}
+
+/** The prompt (trimmed, capped) and the centre (`at`, else the origin) of a "Draw with AI" request. */
+function aiArgs(body: { prompt?: unknown; at?: Point } | undefined): [string, Point] {
+  const prompt = typeof body?.prompt === 'string' ? body.prompt.trim().slice(0, 1000) : '';
+  if (!prompt) throw new AppError('VALIDATION', 'Say what to draw');
+  const at = body?.at;
+  return [prompt, typeof at?.x === 'number' && typeof at.y === 'number' && Number.isFinite(at.x + at.y) ? at : { x: 0, y: 0 }];
 }
