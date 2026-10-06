@@ -71,8 +71,10 @@ short-lived `boardToken` (HMAC-signed). The token goes on the WebSocket as
 Client sends `join | op | cursor | leave | ping`; the server replies with
 `joined | op | participants | cursor | permissions | error | pong`. Every
 broadcast `op` carries the board's monotonic `seq`. A viewer's op is rejected
-with `error FORBIDDEN` and never applied. A second socket for the same
-`(userId, boardId)` closes the first one with code `4001`.
+with `error FORBIDDEN` and never applied. One user may have several sockets on
+a board (two tabs, a laptop and a phone), each sent everything; only a second
+socket from the same tab (`tab` in `join`) closes the first one with code
+`4001`. A broadcast `op` carries the sender's `tab`, so a tab knows its own echo.
 
 ## Layout
 

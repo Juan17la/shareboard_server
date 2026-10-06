@@ -2,7 +2,8 @@
 import type { BoardElement, BoardMeta, Op, Participant, Point, UserId } from './types.js';
 
 export type ClientMessage =
-  | { type: 'join'; boardId: string; userId: UserId; nickname: string; pin?: string }
+  /** `tab`: which tab (page load) of this user it is, so two tabs keep a socket each; optional. */
+  | { type: 'join'; boardId: string; userId: UserId; nickname: string; pin?: string; tab?: string }
   /** `seq` is the sender's own counter, echoed back for debugging. */
   | { type: 'op'; boardId: string; ops: Op[]; seq: number }
   | { type: 'cursor'; boardId: string; at: Point }
@@ -25,7 +26,8 @@ export type ServerMessage =
    * is `'server'` for a correction: the current state of elements whose edit
    * was refused because someone else holds them.
    */
-  | { type: 'op'; ops: Op[]; from: UserId; seq: number }
+  /** `tab`: the sending tab, so a tab tells its own echo from the same user's other tabs. */
+  | { type: 'op'; ops: Op[]; from: UserId; tab?: string; seq: number }
   | { type: 'participants'; participants: Participant[] }
   | { type: 'cursor'; from: UserId; at: Point }
   | { type: 'permissions'; meta: BoardMeta; you: Participant }

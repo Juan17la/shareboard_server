@@ -1,5 +1,5 @@
 /**
- * Realtime board sync. One socket per (board, client); the protocol is plain
+ * Realtime board sync. One socket per (board, tab); the protocol is plain
  * JSON frames over a standard WebSocket — see docs/07-websockets.
  */
 import type { FastifyInstance } from 'fastify';
@@ -33,6 +33,7 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
       };
       const client: hub.Client = {
         userId: auth.userId,
+        tab: '',
         send,
         close: (code, reason) => socket.close(code, reason),
       };
@@ -52,7 +53,9 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
           throw new AppError('NICKNAME_TAKEN', 'That nickname is in use here');
         }
 
-        // A second socket for the same user replaces the first one.
+        // A second socket from the same tab (a reconnect) replaces the first;
+        // another tab of the same user keeps its own.
+        client.tab = typeof msg.tab === 'string' ? msg.tab.slice(0, 64) : '';
         hub.join(board.meta.id, client)?.close(CloseCode.REPLACED, 'Replaced by a newer session');
 
         const existing = board.participants.get(auth!.userId);
@@ -117,7 +120,7 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         board.seq += 1;
         store.touch(board);
         // Echoed to the sender too, so it can confirm against the board seq.
-        hub.broadcast(board.meta.id, { type: 'op', ops, from: auth!.userId, seq: board.seq });
+        hub.broadcast(board.meta.id, { type: 'op', ops, from: auth!.userId, tab: client.tab, seq: board.seq });
       }
 
       /** Ids selected by anyone but this socket's user. */

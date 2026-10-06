@@ -7,6 +7,25 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.4.0-beta] - 2026-10-05
+
+### Added
+
+- `POST /ai`: "Draw with AI" for a board that lives only on the caller's
+  device (an offline board) — always a preview, rate-limited per user and per
+  address.
+- `underline` on a text element (optional, boolean, patchable).
+- `vertices` on a polygon: its own corners as fractions of the box (3–12 points,
+  clamped into the box); optional.
+- `opacity`, `rounded`, `align` and `valign` on elements (stored, validated and
+  patchable); all optional, so older clients and boards are unaffected.
+
+### Fixed
+
+- One user may hold several sockets on a board; only a reconnect from the same
+  tab (`tab` in `join`) replaces the old one, and a broadcast `op` carries the
+  sender's `tab`. Before, a user's second tab closed the first.
+
 ## [1.3.1-beta] - 2026-10-01
 
 ### Changed
