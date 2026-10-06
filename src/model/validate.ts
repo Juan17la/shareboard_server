@@ -54,6 +54,20 @@ function inRange(v: number, min: number, max: number, field: string): number {
 }
 
 /** An optional enum field: absent stays absent, present must be one of `values`. */
+/** An irregular polygon's corners: 3..maxSides points, each clamped into the box (0..1). */
+function vertices(v: unknown): { vertices?: { x: number; y: number }[] } {
+  if (v === undefined || v === null) return {};
+  if (!Array.isArray(v) || v.length < 3 || v.length > LIMITS.maxSides) {
+    throw invalid(`"vertices" must be 3..${LIMITS.maxSides} points`);
+  }
+  return {
+    vertices: v.map((p, i) => {
+      const { x, y } = point(p, `vertices[${i}]`);
+      return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+    }),
+  };
+}
+
 function oneOf<T extends string>(
   v: unknown,
   values: readonly T[],
@@ -237,6 +251,7 @@ export function validateElement(input: unknown): BoardElement {
               sides: Math.round(clamp(num(input.sides, 'sides'), LIMITS.minSides, LIMITS.maxSides)),
             }
           : null),
+        ...vertices(input.vertices),
         ...oneOf(input.font, FONTS, 'font'),
         ...oneOf(input.headStart, MARKERS, 'headStart'),
         ...oneOf(input.headEnd, MARKERS, 'headEnd'),
@@ -274,6 +289,7 @@ export function validateElement(input: unknown): BoardElement {
         ),
         bold: input.bold === true,
         italic: input.italic === true,
+        ...(input.underline === true ? { underline: true } : null),
         ...oneOf(input.font, FONTS, 'font'),
         ...oneOf(input.align, ALIGNS, 'align'),
         ...(input.width !== undefined && input.width !== null
@@ -306,7 +322,7 @@ export function validateElement(input: unknown): BoardElement {
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const OPTIONAL = new Set([
   'group', 'rotation', 'opacity', 'fill', 'text', 'fontSize', 'sides', 'font', 'headStart', 'headEnd',
-  'route', 'bend', 'dash', 'rounded', 'align', 'valign', 'fromLink', 'toLink', 'deleted', 'bold', 'italic', 'width', 'labelAt',
+  'route', 'bend', 'dash', 'rounded', 'align', 'valign', 'vertices', 'fromLink', 'toLink', 'deleted', 'bold', 'italic', 'underline', 'width', 'labelAt',
   'startAxis', 'endAxis', 'curveFrom', 'curveTo',
 ]);
 const REQUIRED = new Set([
@@ -374,6 +390,7 @@ export function validatePatch(raw: Record<string, unknown>): Partial<BoardElemen
         break;
       case 'bold':
       case 'italic':
+      case 'underline':
       case 'rounded':
         out[key] = v === true;
         break;
@@ -393,6 +410,9 @@ export function validatePatch(raw: Record<string, unknown>): Partial<BoardElemen
         break;
       case 'dash':
         Object.assign(out, oneOf(v, DASHES, key));
+        break;
+      case 'vertices':
+        Object.assign(out, vertices(v));
         break;
       case 'align':
         Object.assign(out, oneOf(v, ALIGNS, key));
