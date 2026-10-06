@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.4.1-beta] - 2026-10-06
+
 ## [1.4.0-beta] - 2026-10-05
 
 ### Added
