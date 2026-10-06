@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.4.0-beta] - 2026-10-05
+
 ### Added
 
 - `POST /ai`: "Draw with AI" for a board that lives only on the caller's
