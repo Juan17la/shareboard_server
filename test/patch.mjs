@@ -31,11 +31,17 @@ assert.deepEqual(patch({ opacity: 0 }), { opacity: 0.1 });
 assert.deepEqual(patch({ opacity: null }), { opacity: null });
 bad({ opacity: 'half' });
 assert.deepEqual(patch({ rounded: true }), { rounded: true });
+assert.deepEqual(patch({ underline: true, bold: null }), { underline: true, bold: null });
 assert.deepEqual(patch({ rounded: null }), { rounded: null });
 assert.deepEqual(patch({ align: 'right', valign: 'bottom' }), { align: 'right', valign: 'bottom' });
 assert.deepEqual(patch({ align: null, valign: null }), { align: null, valign: null });
 bad({ align: 'justify' });
 bad({ valign: 'left' });
+const tri = [{ x: 0, y: 1 }, { x: 0.5, y: 0 }, { x: 2, y: 1 }];
+assert.deepEqual(patch({ vertices: tri }), { vertices: [{ x: 0, y: 1 }, { x: 0.5, y: 0 }, { x: 1, y: 1 }] });
+assert.deepEqual(patch({ vertices: null }), { vertices: null });
+bad({ vertices: [{ x: 0, y: 0 }] });
+bad({ vertices: 'many' });
 // Not patchable / unknown: dropped, not refused.
 assert.deepEqual(patch({ id: 'x', kind: 'text', createdBy: 'me', shiny: true }), {});
 // Malformed: refused.
