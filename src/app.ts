@@ -14,9 +14,10 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(cors, {
     origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',').map((o) => o.trim()),
-    // PATCH is not in @fastify/cors's default list, and rename + permissions
-    // both use it — without this the browser preflight blocks them.
-    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'OPTIONS'],
+    // PATCH and DELETE are not in @fastify/cors's default list; rename and
+    // permissions use PATCH, deleting a board DELETE — without them the
+    // browser preflight blocks those calls.
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
   });
   await app.register(websocket, {
