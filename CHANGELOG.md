@@ -7,6 +7,18 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.4.2-beta] - 2026-10-07
+
+### Fixed
+
+- Deleting a board from the web app works: browsers were refused the `DELETE`
+  request because CORS did not allow that method.
+
+### Changed
+
+- Licensed under the PolyForm Noncommercial License 1.0.0 (free for any
+  noncommercial use). The README points to the new project documentation.
+
 ## [1.4.1-beta] - 2026-10-06
 
 ## [1.4.0-beta] - 2026-10-05

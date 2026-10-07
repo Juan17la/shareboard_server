@@ -1,11 +1,16 @@
-# Live Whiteboard — Server
+# Shareboard — Server
 
-Fastify + TypeScript backend: REST for everything that is not realtime, and a
-plain WebSocket for live board sync. Standalone project — the web and mobile
-clients only depend on the wire contract.
+Fastify + TypeScript backend of [Shareboard](https://github.com/Juan17la/shareboard_web),
+the collaborative whiteboard: REST for everything that is not realtime, and a
+plain WebSocket for live board sync. Standalone project — the
+[web](https://github.com/Juan17la/shareboard_web) and
+[Android](https://github.com/Juan17la/shareboard_mobile) clients only depend
+on the wire contract.
 
-Specified by `../mobile/docs` (02-backend-connection, 05-model-date,
-06-loading-exporting, 07-websockets).
+Full documentation, including the protocol and the internals of this server:
+[Shareboard docs](https://github.com/Juan17la/shareboard_mobile/blob/main/docs/README.md)
+([communication](https://github.com/Juan17la/shareboard_mobile/blob/main/docs/architecture/communication.md),
+[server internals](https://github.com/Juan17la/shareboard_mobile/blob/main/docs/architecture/server.md)).
 
 ## Run
 
@@ -55,10 +60,14 @@ single live copy. MongoDB stays the source of truth.
 | Rename | `PATCH /boards/:id` | creator token |
 | Permissions | `PATCH /boards/:id/permissions` | creator token |
 | Snapshot | `GET /boards/:id/snapshot` | board token |
+| Delete | `DELETE /boards/:id` | creator token |
+| Draw with AI | `POST /boards/:id/ai` | board token |
+| Draw with AI (offline board) | `POST /ai` | `X-User-Id` |
 | Import | `POST /boards/import` | `X-User-Id` |
 
 Errors always use `{ "error": { "code": "...", "message": "..." } }` with the
-codes listed in docs/02.
+codes listed in the
+[communication docs](https://github.com/Juan17la/shareboard_mobile/blob/main/docs/architecture/communication.md#errors).
 
 `POST /boards/:id/join` validates the PIN, assigns the role and returns a
 short-lived `boardToken` (HMAC-signed). The token goes on the WebSocket as
@@ -68,8 +77,8 @@ short-lived `boardToken` (HMAC-signed). The token goes on the WebSocket as
 
 `ws://localhost:3000/ws?boardId=<id>&token=<boardToken>`
 
-Client sends `join | op | cursor | leave | ping`; the server replies with
-`joined | op | participants | cursor | permissions | error | pong`. Every
+Client sends `join | op | cursor | select | leave | ping`; the server replies
+with `joined | op | participants | cursor | permissions | resync | error | pong`. Every
 broadcast `op` carries the board's monotonic `seq`. A viewer's op is rejected
 with `error FORBIDDEN` and never applied. One user may have several sockets on
 a board (two tabs, a laptop and a phone), each sent everything; only a second
@@ -90,5 +99,13 @@ src/
 
 ## Persistence
 
-Active boards live in memory. Dirty boards are written every ~2 min, evicted
-after 5 min idle with nobody connected, and all flushed on SIGTERM/SIGINT.
+Active boards live in memory and are written behind to MongoDB within
+`WRITE_DELAY_MS` of each change. Boards with nobody on them are evicted after
+5 minutes idle (once saved), and everything still dirty is flushed on
+SIGTERM/SIGINT.
+
+## License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE): free for any noncommercial
+use; commercial use is reserved to the author,
+[@Juan17la](https://github.com/Juan17la).
