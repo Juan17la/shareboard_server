@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.4.2-beta] - 2026-10-07
+
 ### Fixed
 
 - Deleting a board from the web app works: browsers were refused the `DELETE`
