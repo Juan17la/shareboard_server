@@ -9,6 +9,11 @@ All notable changes to the Shareboard server. The format follows
 
 ## [1.5.0-beta] - 2026-10-09
 
+### Changed
+
+- No server changes: released together with the web and mobile apps (figure text
+  options, inline option buttons, text editor line breaks, resize corner brackets).
+
 ## [1.4.2-beta] - 2026-10-07
 
 ### Fixed
