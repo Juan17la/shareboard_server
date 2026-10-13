@@ -7,6 +7,23 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Accounts: `POST /auth/register` and `POST /auth/login` (username + password,
+  scrypt-hashed) return a 30-day session token; `GET /me`, `GET /me/boards`
+  ("My whiteboards": every board the account made or got into) and
+  `DELETE /me/boards/:id`. A guest's boards move to the account it signs in to.
+- A board's creator is never asked for its PIN, and an account that got in
+  once is not asked again until the PIN changes.
+
+### Changed
+
+- Creating or importing a live board needs a signed-in account
+  (`AUTH_REQUIRED` otherwise); joining a board as a guest still works.
+- An account id (`usr_…`) is only accepted with its session token, so nobody
+  can claim a creator's id to skip the PIN.
+- New error codes: `AUTH_REQUIRED`, `LOGIN_INVALID`, `USERNAME_TAKEN`.
+
 ## [1.5.0-beta] - 2026-10-09
 
 ### Changed
