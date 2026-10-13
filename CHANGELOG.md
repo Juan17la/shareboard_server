@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.6.0-beta] - 2026-10-13
+
 ### Added
 
 - Accounts: `POST /auth/register` and `POST /auth/login` (username + password,
