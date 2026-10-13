@@ -25,7 +25,7 @@ import { persistenceEnabled, pingMongo } from '../store/mongo.js';
 import { issueBoardToken } from '../tokens.js';
 import * as hub from '../ws/hub.js';
 import { PRESENCE_COLORS } from '../model/types.js';
-import { tokenFor, userIdOf } from './auth.js';
+import { accountOf, assertIdentity, isAccountId, tokenFor, userIdOf } from './auth.js';
 
 /** Only the creator may rename or change permissions. */
 function assertCreator(board: store.ActiveBoard, userId: string): void {
@@ -47,6 +47,8 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       throw new AppError('RATE_LIMITED', 'Too many boards created from this address');
     }
     const body = validateCreateBoard(req.body);
+    // A live board is a shared one, and sharing needs an account.
+    if (accountOf(req) !== body.creatorId) throw forbidden('A board is created by the signed-in account');
     const board = await store.createBoard({
       name: body.name,
       access: body.access,
@@ -72,8 +74,13 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { id: string } }>('/boards/:id/join', async (req) => {
     const board = await store.getBoard(req.params.id);
     const body = validateJoin(req.body);
+    assertIdentity(req, body.userId);
+    // An account that made the board, or got in since the PIN was last set,
+    // is not asked again. A guest always is: its id proves nothing.
+    const account = isAccountId(body.userId);
+    const known = account && (board.meta.creatorId === body.userId || board.members.has(body.userId));
 
-    if (board.pinHash) {
+    if (board.pinHash && !known) {
       if (!allow(`pin:${req.ip}:${board.meta.id}`, config.pinAttemptsPerMinute, 60_000)) {
         throw new AppError('RATE_LIMITED', 'Too many PIN attempts, try again shortly');
       }
@@ -105,6 +112,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       lastSeen: Date.now(),
     };
     board.participants.set(you.userId, you);
+    if (account) store.addMember(board, you.userId);
 
     return {
       boardToken: issueBoardToken(board.meta.id, you.userId, you.role),
@@ -145,6 +153,8 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
     const patch = validatePermissions(req.body);
 
     if (patch.pin !== undefined) board.pinHash = patch.pin === null ? null : hashPin(patch.pin);
+    // A new PIN is asked of everyone again: whoever it was changed to keep out is out.
+    if (typeof patch.pin === 'string') board.members.clear();
     board.meta = {
       ...board.meta,
       access: patch.access ?? board.meta.access,
@@ -237,12 +247,13 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       if (!allow(`create:${req.ip}`, config.createBoardPerHour, 3_600_000)) {
         throw new AppError('RATE_LIMITED', 'Too many boards created from this address');
       }
+      const creatorId = accountOf(req);
       const snapshot = validateSnapshot(req.body?.snapshot);
       const board = await store.createBoard({
         name: snapshot.meta.name,
         access: 'public',
         editPolicy: 'everyone',
-        creatorId: userIdOf(req),
+        creatorId,
         elements: snapshot.elements,
       });
       return reply.code(201).send(board.meta);
