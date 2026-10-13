@@ -6,6 +6,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { config } from './config.js';
 import { AppError } from './errors.js';
 import { REALTIME } from './model/protocol.js';
+import { accountRoutes } from './routes/account.js';
 import { boardRoutes } from './routes/boards.js';
 import { realtimeRoutes } from './ws/index.js';
 
@@ -39,6 +40,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   );
 
   await app.register(boardRoutes);
+  await app.register(accountRoutes);
   await app.register(realtimeRoutes);
   return app;
 }
