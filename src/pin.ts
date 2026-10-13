@@ -1,4 +1,4 @@
-/** PIN hashing. The PIN is never stored or returned in clear. */
+/** PIN and password hashing (scrypt). Neither is ever stored or returned in clear. */
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 export function hashPin(pin: string): string {

@@ -3,6 +3,7 @@
  * Mirrors mobile/docs/05-model-date.
  */
 
+/** A guest's device-made UUID, or `usr_…` for an account (only usable with its session token). */
 export type UserId = string;
 export type BoardAccess = 'public' | 'private';
 export type EditPolicy = 'everyone' | 'selected' | 'creator-only';
@@ -234,6 +235,7 @@ export const LIMITS = {
   maxSides: 12,
   maxNicknameLength: 40,
   maxBoardNameLength: 80,
+  minPasswordLength: 8,
   /** #RRGGBB, or #RRGGBBAA for the translucent fills the shape tool paints. */
   colorPattern: /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/,
 } as const;
