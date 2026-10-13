@@ -18,6 +18,12 @@ export interface ActiveBoard {
   pinHash: string | null;
   elements: Map<string, BoardElement>;
   participants: Map<UserId, Participant>;
+  /**
+   * Accounts that have got in since the PIN was last set: they are not asked
+   * for it again, and the board is in their "My whiteboards". Guests are never
+   * members — their id proves nothing.
+   */
+  members: Set<UserId>;
   /** Monotonic per board; stamped on every broadcast op. */
   seq: number;
   topZ: number;
@@ -39,16 +45,23 @@ const codeIndex = new Map<string, string>();
 
 function toDoc(board: ActiveBoard): db.BoardDoc {
   const { id, hasPin, ...rest } = board.meta;
-  return { _id: id, ...rest, pinHash: board.pinHash, elements: [...board.elements.values()] };
+  return {
+    _id: id,
+    ...rest,
+    pinHash: board.pinHash,
+    members: [...board.members],
+    elements: [...board.elements.values()],
+  };
 }
 
 function fromDoc(doc: db.BoardDoc): ActiveBoard {
-  const { _id, pinHash, elements, ...meta } = doc;
+  const { _id, pinHash, elements, members, ...meta } = doc;
   return {
     meta: { ...meta, id: _id, hasPin: pinHash !== null },
     pinHash,
     elements: new Map(elements.map((el) => [el.id, el])),
     participants: new Map(),
+    members: new Set(members ?? []),
     seq: 0,
     topZ: elements.reduce((max, el) => Math.max(max, el.z), 0),
     lastActivityAt: Date.now(),
@@ -108,6 +121,7 @@ export async function createBoard(input: {
     pinHash: input.pinHash ?? null,
     elements: new Map(elements.map((el, i) => [el.id, { ...el, z: i + 1 }])),
     participants: new Map(),
+    members: new Set(),
     seq: 0,
     topZ: elements.length,
     lastActivityAt: now,
@@ -160,6 +174,64 @@ export async function deleteBoard(board: ActiveBoard): Promise<void> {
   // Let an in-flight save land first so it can't bring the board back.
   while (board.saving) await board.saving.catch(() => {});
   await db.deleteBoard(board.meta.id);
+}
+
+/** Remembers that an account got in, so its next join skips the PIN. */
+export function addMember(board: ActiveBoard, userId: UserId): void {
+  if (board.meta.creatorId === userId || board.members.has(userId)) return;
+  board.members.add(userId);
+  touch(board);
+}
+
+export function removeMember(board: ActiveBoard, userId: UserId): void {
+  if (board.members.delete(userId)) touch(board);
+}
+
+/** What "My whiteboards" lists for one board. */
+export interface BoardListItem {
+  id: string;
+  shortCode: string;
+  name: string;
+  access: BoardMeta['access'];
+  hasPin: boolean;
+  role: 'creator' | 'member';
+  updatedAt: number;
+}
+
+/**
+ * The boards an account made or is a member of, newest first. Stored ones
+ * come from Mongo; the copy in memory wins, since it may not be written yet.
+ */
+export async function listBoardsFor(userId: UserId, limit = 100): Promise<BoardListItem[]> {
+  const byId = new Map<string, BoardListItem>();
+  const item = (meta: Omit<BoardMeta, 'hasPin' | 'editors'>, hasPin: boolean): BoardListItem => ({
+    id: meta.id,
+    shortCode: meta.shortCode,
+    name: meta.name,
+    access: meta.access,
+    hasPin,
+    role: meta.creatorId === userId ? 'creator' : 'member',
+    updatedAt: meta.updatedAt,
+  });
+  for (const doc of await db.findBoardsFor(userId, limit)) {
+    if (!active.has(doc._id)) byId.set(doc._id, item({ ...doc, id: doc._id }, doc.pinHash !== null));
+  }
+  for (const board of active.values()) {
+    if (board.meta.creatorId === userId || board.members.has(userId)) {
+      byId.set(board.meta.id, item(board.meta, board.pinHash !== null));
+    }
+  }
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
+}
+
+/** A guest's boards become their account's: on register, and on sign-in from a device that made some. */
+export async function transferBoards(from: UserId, to: UserId): Promise<void> {
+  for (const board of active.values()) {
+    if (board.meta.creatorId !== from) continue;
+    board.meta.creatorId = to;
+    touch(board);
+  }
+  await db.transferBoards(from, to);
 }
 
 export function isNicknameTaken(board: ActiveBoard, nickname: string, userId: UserId): boolean {

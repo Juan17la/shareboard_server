@@ -104,6 +104,37 @@ export function validatePin(v: unknown): string {
   return pin;
 }
 
+export interface CredentialsBody {
+  /** Lower-cased. */
+  username: string;
+  password: string;
+  /** Register only: the name shown on boards. Login keeps the account's. */
+  nickname?: string;
+  avatar?: string;
+  /** The guest id this device used until now: its boards move to the account. */
+  deviceId?: string;
+}
+
+/** Register and login. Usernames: 3-24 of a-z 0-9 . _ ; passwords: 8-128 characters. */
+export function validateCredentials(body: unknown, register: boolean): CredentialsBody {
+  if (!isObject(body)) throw invalid('Body must be an object');
+  const username = str(body.username, 'username', 24).trim().toLowerCase();
+  if (!/^[a-z0-9._]{3,24}$/.test(username)) {
+    throw invalid('"username" must be 3 to 24 letters, digits, dots or underscores');
+  }
+  const password = str(body.password, 'password', 128);
+  if (register && password.length < LIMITS.minPasswordLength) {
+    throw invalid(`"password" must be at least ${LIMITS.minPasswordLength} characters`);
+  }
+  return {
+    username,
+    password,
+    ...(register ? { nickname: validateNickname(body.nickname) } : {}),
+    ...(register && body.avatar != null ? { avatar: str(body.avatar, 'avatar', 8) } : {}),
+    ...(body.deviceId != null ? { deviceId: str(body.deviceId, 'deviceId', 64) } : {}),
+  };
+}
+
 export interface CreateBoardBody {
   name: string;
   access: BoardAccess;

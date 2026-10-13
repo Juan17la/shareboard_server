@@ -53,12 +53,19 @@ const open = (boardId, token, userId, nickname) =>
     };
   });
 
-const creator = 'u_creator';
+// Sharing a board needs an account: the creator signs up first.
+const signup = await json('/auth/register', {
+  method: 'POST',
+  body: { username: `smoke_${Date.now().toString(36)}`, password: 'smoke password', nickname: 'Cre' },
+});
+assert.equal(signup.status, 201);
+const creator = signup.body.account.id;
+const session = `Bearer ${signup.body.token}`;
 const guest = 'u_guest';
 
 const created = await json('/boards', {
   method: 'POST',
-  headers: { 'X-User-Id': creator },
+  headers: { 'X-User-Id': creator, Authorization: session },
   body: { name: 'smoke', access: 'public', editPolicy: 'everyone', creatorId: creator },
 });
 assert.equal(created.status, 201);
@@ -66,7 +73,7 @@ const id = created.body.id;
 
 const joinC = await json(`/boards/${id}/join`, {
   method: 'POST',
-  headers: { 'X-User-Id': creator },
+  headers: { 'X-User-Id': creator, Authorization: session },
   body: { userId: creator, nickname: 'Cre', avatar: '🦊' },
 });
 assert.equal(joinC.body.you.avatar, '🦊', 'avatar is stored on join');

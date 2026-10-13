@@ -33,4 +33,7 @@ export const config = {
   /** Rate limits, from mobile/docs/02-backend-connection. */
   createBoardPerHour: 10,
   pinAttemptsPerMinute: 5,
+  registerPerHour: 10,
+  /** Per address and per username. */
+  loginAttemptsPerMinute: 10,
 } as const;

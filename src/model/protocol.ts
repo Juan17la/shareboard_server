@@ -44,6 +44,11 @@ export type ServerErrorCode =
   | 'BOARD_NOT_FOUND'
   | 'PIN_REQUIRED'
   | 'PIN_INVALID'
+  /** The call needs an account (sharing a board), or the session token is missing, bad or expired. */
+  | 'AUTH_REQUIRED'
+  /** Wrong username or password. */
+  | 'LOGIN_INVALID'
+  | 'USERNAME_TAKEN'
   | 'FORBIDDEN'
   | 'NICKNAME_TAKEN'
   | 'RATE_LIMITED'
