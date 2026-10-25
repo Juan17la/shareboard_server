@@ -63,4 +63,15 @@ assert.equal(els.get('a').deleted, undefined);
 assert.equal(els.get('a').z, 2);
 assert.equal(z, 5);
 
+// Lock, sticky note, highlighter: kept on add, true or unset in a patch.
+assert.deepEqual(patch({ locked: true, sticky: true }), { locked: true, sticky: true });
+assert.deepEqual(patch({ locked: null, sticky: 'yes' }), { locked: null, sticky: null });
+const [added] = validateOps([
+  { t: 'add', el: { id: 's', kind: 'stroke', createdBy: 'u', createdAt: 1, updatedAt: 1, points: [0, 0, 1, 1], color: '#000000', width: 2, tool: 'highlighter', locked: true } },
+  { t: 'add', el: { id: 'n', kind: 'shape', shape: 'rectangle', createdBy: 'u', createdAt: 1, updatedAt: 1, from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, stroke: '#000000', strokeWidth: 2, sticky: true } },
+]);
+assert.equal(added.el.tool, 'highlighter');
+assert.equal(added.el.locked, true);
+assert.equal(validateOps([{ t: 'add', el: { id: 's', kind: 'stroke', createdBy: 'u', createdAt: 1, updatedAt: 1, points: [0, 0], color: '#000000', width: 2, tool: 'marker' } }])[0].el.tool, undefined);
+
 console.log('patch: ok');

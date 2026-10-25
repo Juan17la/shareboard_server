@@ -7,6 +7,17 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.7.0-beta] - 2026-10-25
+
+### Added
+
+- Elements can be `locked` (no edit but the unlock goes through; refused edits come back as a correction), sticky notes (`sticky` on a rectangle) and highlighter strokes (`tool: 'highlighter'`).
+- Classroom messages, relayed and never stored: `react` (one of six emoji), `timer` (a countdown, sent to late joiners as `timerLeft`), and `laser` on `cursor`.
+- A `preview` message: what someone is drawing or dragging is passed on to the
+  others in the room as it happens, never stored. It is validated, capped at
+  64 KB and 40 a second, and ended with a `null` when the sender disconnects.
+- The smoke test covers preview relaying.
+
 ## [1.6.0-beta] - 2026-10-13
 
 ### Added
