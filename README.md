@@ -12,6 +12,14 @@ Full documentation, including the protocol and the internals of this server:
 ([communication](https://github.com/Juan17la/shareboard_mobile/blob/main/docs/architecture/communication.md),
 [server internals](https://github.com/Juan17la/shareboard_mobile/blob/main/docs/architecture/server.md)).
 
+<div align="center">
+
+<img src="docs/assets/board-phone.png" alt="Shareboard on Android: a mind map on the board, with the header, zoom and toolbar" width="260" />
+&nbsp;&nbsp;
+<img src="docs/assets/board-desktop.png" alt="Shareboard in the browser: a sprint board with shapes, arrows and sticky notes" width="640" />
+
+</div>
+
 ## Run
 
 ```bash
