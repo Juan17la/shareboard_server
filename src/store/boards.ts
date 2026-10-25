@@ -27,6 +27,8 @@ export interface ActiveBoard {
   /** Monotonic per board; stamped on every broadcast op. */
   seq: number;
   topZ: number;
+  /** When the board's countdown ends (server clock); never saved. */
+  timerEndsAt?: number;
   lastActivityAt: number;
   dirty: boolean;
   /** Pending write-behind timer. */

@@ -4,6 +4,7 @@
  */
 import { invalid } from '../errors.js';
 import { ALIGNS, AXES, DASHES, FONTS, LIMITS, MARKERS, ROUTES, VALIGNS } from './types.js';
+import type { Preview } from './protocol.js';
 import type {
   BoardAccess,
   BoardElement,
@@ -228,6 +229,7 @@ export function validateElement(input: unknown): BoardElement {
     ...(typeof input.group === 'string' ? { group: str(input.group, 'element.group', 64) } : {}),
     ...(input.rotation != null ? { rotation: angle(num(input.rotation, 'rotation')) } : {}),
     ...(input.opacity != null ? { opacity: clamp(num(input.opacity, 'opacity'), 0.1, 1) } : {}),
+    ...(input.locked === true ? { locked: true as const } : {}),
   };
 
   switch (input.kind) {
@@ -244,6 +246,7 @@ export function validateElement(input: unknown): BoardElement {
         points: input.points.map((n, i) => num(n, `points[${i}]`)),
         color: color(input.color, 'color'),
         width: inRange(num(input.width, 'width'), LIMITS.minStrokeWidth, LIMITS.maxStrokeWidth, 'width'),
+        ...(input.tool === 'highlighter' ? { tool: 'highlighter' as const } : null),
       };
     }
     case 'shape': {
@@ -295,6 +298,7 @@ export function validateElement(input: unknown): BoardElement {
         ...oneOf(input.align, ALIGNS, 'align'),
         ...oneOf(input.valign, VALIGNS, 'valign'),
         ...(input.rounded === true ? { rounded: true } : null),
+        ...(input.sticky === true ? { sticky: true } : null),
         ...oneOf(input.startAxis, AXES, 'startAxis'),
         ...oneOf(input.endAxis, AXES, 'endAxis'),
         ...(input.curveFrom != null ? { curveFrom: point(input.curveFrom, 'curveFrom') } : null),
@@ -354,7 +358,7 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 const OPTIONAL = new Set([
   'group', 'rotation', 'opacity', 'fill', 'text', 'fontSize', 'sides', 'font', 'headStart', 'headEnd',
   'route', 'bend', 'dash', 'rounded', 'align', 'valign', 'vertices', 'fromLink', 'toLink', 'deleted', 'bold', 'italic', 'underline', 'width', 'labelAt',
-  'startAxis', 'endAxis', 'curveFrom', 'curveTo',
+  'startAxis', 'endAxis', 'curveFrom', 'curveTo', 'locked', 'sticky',
 ]);
 const REQUIRED = new Set([
   'z', 'height', 'points', 'color', 'stroke', 'strokeWidth', 'from', 'to', 'at', 'shape', 'uri',
@@ -379,6 +383,8 @@ export function validatePatch(raw: Record<string, unknown>): Partial<BoardElemen
         out[key] = num(v, key);
         break;
       case 'deleted':
+      case 'locked':
+      case 'sticky':
         out[key] = v === true ? true : null;
         break;
       case 'group':
@@ -495,6 +501,40 @@ export function validateOps(input: unknown): Op[] {
         throw invalid(`Unknown op "${String(raw.t)}"`);
     }
   });
+}
+
+/** A `preview` frame's payload; `null` ends one. Rebuilt from its parts, so only known fields are relayed. */
+export function validatePreview(input: unknown): Preview | null {
+  if (input === null) return null;
+  if (!isObject(input)) throw invalid('"preview" must be an object or null');
+  const out: Preview = {};
+  if (input.el !== undefined) out.el = validateElement(input.el);
+  if (input.edit !== undefined) {
+    const e = input.edit;
+    if (!isObject(e)) throw invalid('"edit" must be an object');
+    if (!Array.isArray(e.ids) || e.ids.length > LIMITS.maxElements) throw invalid('"edit.ids" must be an array');
+    if (e.mode !== 'move' && e.mode !== 'resize') throw invalid('"edit.mode" is not valid');
+    if (e.patches !== undefined && !isObject(e.patches)) throw invalid('"edit.patches" must be an object');
+    out.edit = {
+      ids: e.ids.map((id) => str(id, 'edit.ids', 64)),
+      mode: e.mode,
+      handle: num(e.handle, 'edit.handle'),
+      start: point(e.start, 'edit.start'),
+      dx: num(e.dx, 'edit.dx'),
+      dy: num(e.dy, 'edit.dy'),
+      patch: isObject(e.patch) ? validatePatch(e.patch) : null,
+      ...(e.patches
+        ? {
+            patches: Object.fromEntries(
+              Object.entries(e.patches)
+                .slice(0, LIMITS.maxElements)
+                .map(([id, p]) => [str(id, 'edit.patches', 64), isObject(p) ? validatePatch(p) : {}]),
+            ),
+          }
+        : null),
+    };
+  }
+  return out;
 }
 
 export function validateSnapshot(input: unknown): BoardSnapshot {

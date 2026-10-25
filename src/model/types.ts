@@ -33,6 +33,8 @@ interface ElementBase {
   rotation?: number;
   /** Whole-element opacity, 0.1..1; absent is opaque. */
   opacity?: number;
+  /** Can't be selected, moved or deleted until someone unlocks it. */
+  locked?: boolean;
 }
 
 /** What a line or arrow ends in. */
@@ -83,6 +85,8 @@ export interface StrokeElement extends ElementBase {
   points: number[];
   color: string;
   width: number;
+  /** A highlighter stroke: translucent, painted under the rest. Absent: a pen. */
+  tool?: 'highlighter';
 }
 
 export interface ShapeElement extends ElementBase {
@@ -126,6 +130,8 @@ export interface ShapeElement extends ElementBase {
   dash?: Dash;
   /** Enclosed shapes but the ellipse: corners rounded instead of sharp. */
   rounded?: boolean;
+  /** A rectangle drawn as a sticky note: a shadow, and a label that shrinks to fit. */
+  sticky?: boolean;
   /**
    * Elbow only: the direction the line leaves its start / arrives at its end
    * along. Absent: the long axis — or, at an end bound to a side of a shape,
