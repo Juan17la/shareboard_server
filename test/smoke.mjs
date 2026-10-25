@@ -2,8 +2,8 @@
  * End-to-end check against a running server (`npm run dev`, then
  * `node test/smoke.mjs`). Asserts what the clients rely on: an empty text
  * placeholder is accepted, the avatar rides on the participant, a selection
- * holds its elements against everyone else (first come, first served), and
- * deleting a board disconnects everyone else with BOARD_NOT_FOUND.
+ * holds its elements against everyone else (first come, first served), a
+ * preview is relayed but never stored, and deleting a board disconnects everyone else with BOARD_NOT_FOUND.
  */
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
@@ -196,6 +196,37 @@ await until(c, (m) => m.type === 'participants' && selOf(m, third).includes('arr
 h.close();
 await until(c, (m) => m.type === 'participants' && !m.participants.some((p) => p.userId === third));
 g.send(JSON.stringify({ type: 'select', boardId: id, ids: [] }));
+
+// 1d. A preview (what someone is drawing or dragging) is relayed to the others,
+//     never echoed and never stored; a bad one is dropped quietly, and a
+//     socket that goes ends whatever it was previewing.
+const draft = { id: 'draft', kind: 'stroke', points: [0, 0, 5, 5], color: '#000000', width: 4,
+  createdBy: 'draft', createdAt: 0, updatedAt: 0, z: 0 };
+c.send(JSON.stringify({ type: 'preview', boardId: id, preview: { el: draft, junk: 1 } }));
+let pv = await until(g, (m) => m.type === 'preview' && m.from === creator);
+assert.equal(pv.from, creator);
+assert.deepEqual(pv.preview.el.points, [0, 0, 5, 5]);
+assert.equal(pv.preview.junk, undefined, 'only known fields are relayed');
+c.send(JSON.stringify({ type: 'preview', boardId: id, preview: { el: { ...draft, color: 'red' } } }));
+const drag = { ids: ['arr1'], mode: 'move', handle: -1, start: { x: 0, y: 0 }, dx: 3, dy: 4, patch: null };
+c.send(JSON.stringify({ type: 'preview', boardId: id, preview: { edit: drag } }));
+pv = await until(g, (m) => m.type === 'preview' && m.from === creator);
+assert.equal(pv.preview.edit.dx, 3, 'the bad one before it was dropped, not relayed');
+c.send(JSON.stringify({ type: 'preview', boardId: id, preview: null }));
+assert.equal((await until(g, (m) => m.type === 'preview' && m.from === creator)).preview, null);
+c.send(JSON.stringify({ type: 'ping', t: 1 }));
+assert.equal((await until(c, (m) => ['pong', 'error', 'preview'].includes(m.type))).type, 'pong', 'no echo, no error');
+const joinP = await json(`/boards/${id}/join`, {
+  method: 'POST',
+  headers: { 'X-User-Id': 'u_prev' },
+  body: { userId: 'u_prev', nickname: 'Pre' },
+});
+const p = await open(id, joinP.body.boardToken, 'u_prev', 'Pre');
+assert.equal((await p.nextOf('joined')).type, 'joined');
+p.send(JSON.stringify({ type: 'preview', boardId: id, preview: { el: draft } }));
+await until(g, (m) => m.type === 'preview' && m.from === 'u_prev' && m.preview);
+p.close();
+await until(g, (m) => m.type === 'preview' && m.from === 'u_prev' && m.preview === null);
 
 // 2. Delete: creator only, the guest is told and disconnected, the board is gone.
 const denied = await json(`/boards/${id}`, {

@@ -7,10 +7,10 @@ import type { WebSocket } from 'ws';
 
 import { AppError } from '../errors.js';
 import { applyOps, isOverElementLimit, visibleElements } from '../model/ops.js';
-import { CloseCode, REALTIME, type ClientMessage, type ServerMessage } from '../model/protocol.js';
+import { CloseCode, REACTIONS, REALTIME, type ClientMessage, type Preview, type ServerMessage } from '../model/protocol.js';
 import { canEdit, roleFor } from '../model/rules.js';
 import { LIMITS, PRESENCE_COLORS, type Participant } from '../model/types.js';
-import { validateNickname, validateOps } from '../model/validate.js';
+import { validateNickname, validateOps, validatePreview } from '../model/validate.js';
 import { allow } from '../rate-limit.js';
 import * as store from '../store/boards.js';
 import { verifyBoardToken } from '../tokens.js';
@@ -78,6 +78,9 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
           participants: store.participantList(board),
           you,
           seq: board.seq,
+          ...(board.timerEndsAt && board.timerEndsAt > Date.now()
+            ? { timerLeft: board.timerEndsAt - Date.now() }
+            : null),
         });
         hub.broadcast(board.meta.id, {
           type: 'participants',
@@ -102,6 +105,11 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         const refused = new Set(
           ops.flatMap((op) => ((op.t === 'update' || op.t === 'delete') && held.has(op.id) ? [op.id] : [])),
         );
+        // A locked element takes no edit but the one that unlocks it.
+        for (const op of ops) {
+          if (op.t === 'update' && op.patch.locked === null) continue;
+          if ((op.t === 'update' || op.t === 'delete') && board.elements.get(op.id)?.locked) refused.add(op.id);
+        }
         if (refused.size) {
           ops = ops.filter((op) => !((op.t === 'update' || op.t === 'delete') && refused.has(op.id)));
           const current = [...refused].flatMap((id) => {
@@ -163,7 +171,48 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         you.cursor = msg.at;
         you.lastSeen = Date.now();
         // Cursors are never persisted and never echoed back to the sender.
-        hub.broadcast(board.meta.id, { type: 'cursor', from: you.userId, at: msg.at }, you.userId);
+        hub.broadcast(
+          board.meta.id,
+          { type: 'cursor', from: you.userId, at: msg.at, ...(msg.laser === true ? { laser: true } : null) },
+          you.userId,
+        );
+      }
+
+      async function onReact(msg: Extract<ClientMessage, { type: 'react' }>) {
+        const board = await store.getBoard(boardId!);
+        if (!REACTIONS.includes(msg.emoji)) return;
+        if (!allow(`react:${auth!.userId}:${boardId}`, REALTIME.maxReactionsPerSecond, 1000)) return;
+        // Echoed to the sender too: everyone sees the same float.
+        hub.broadcast(board.meta.id, { type: 'react', from: auth!.userId, emoji: msg.emoji });
+      }
+
+      async function onTimer(msg: Extract<ClientMessage, { type: 'timer' }>) {
+        const board = await store.getBoard(boardId!);
+        if (!canEdit(board.meta, auth!.userId)) return;
+        const ms = typeof msg.ms === 'number' && Number.isFinite(msg.ms) && msg.ms > 0
+          ? Math.min(msg.ms, REALTIME.maxTimerMs)
+          : null;
+        if (ms) board.timerEndsAt = Date.now() + ms;
+        else delete board.timerEndsAt;
+        hub.broadcast(board.meta.id, { type: 'timer', from: auth!.userId, left: ms });
+      }
+
+      /** Relayed to the others as it comes, never stored; too big, too often or from a viewer, dropped. */
+      async function onPreview(msg: Extract<ClientMessage, { type: 'preview' }>) {
+        const board = await store.getBoard(boardId!);
+        if (!canEdit(board.meta, auth!.userId)) return;
+        if (msg.preview !== null && JSON.stringify(msg.preview).length > REALTIME.maxPreviewBytes) return;
+        // The end of a preview always goes through: dropping it would leave a ghost on everyone's board.
+        if (msg.preview !== null && !allow(`preview:${auth!.userId}:${boardId}`, REALTIME.maxPreviewsPerSecond, 1000)) {
+          return;
+        }
+        let preview: Preview | null;
+        try {
+          preview = validatePreview(msg.preview);
+        } catch {
+          return; // a bad one is dropped quietly: an error frame 30 times a second helps nobody
+        }
+        hub.broadcast(board.meta.id, { type: 'preview', from: auth!.userId, preview }, auth!.userId);
       }
 
       async function resync() {
@@ -203,7 +252,15 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
           return;
         }
 
-        const handlers = { join: onJoin, op: onOp, cursor: onCursor, select: onSelect } as const;
+        const handlers = {
+          join: onJoin,
+          op: onOp,
+          cursor: onCursor,
+          select: onSelect,
+          preview: onPreview,
+          react: onReact,
+          timer: onTimer,
+        } as const;
         const run = handlers[msg.type as keyof typeof handlers] as
           | ((m: ClientMessage) => Promise<void>)
           | undefined;
@@ -229,6 +286,8 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         clearInterval(idleCheck);
         if (!joined) return;
         hub.leave(boardId!, client);
+        // Whatever this socket was drawing or dragging is not coming.
+        hub.broadcast(boardId!, { type: 'preview', from: auth!.userId, preview: null }, auth!.userId);
 
         void store
           .getBoard(boardId!)
