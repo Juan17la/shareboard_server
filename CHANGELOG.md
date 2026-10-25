@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.7.0-beta] - 2026-10-25
+
 ### Added
 
 - Elements can be `locked` (no edit but the unlock goes through; refused edits come back as a correction), sticky notes (`sticky` on a rectangle) and highlighter strokes (`tool: 'highlighter'`).
