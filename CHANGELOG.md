@@ -7,6 +7,10 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `REGISTER_PER_HOUR`, `LOGIN_PER_MINUTE`, `CREATE_BOARD_PER_HOUR` and `PIN_PER_MINUTE` env vars override the rate limits, for load tests (ShareboardPerformance). Unset, the limits are unchanged.
+
 ## [1.7.0-beta] - 2026-10-25
 
 ### Added
