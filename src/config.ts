@@ -30,10 +30,10 @@ export const config = {
   aiBaseUrl: env.AI_BASE_URL ?? '',
   aiPerMinute: 10,
 
-  /** Rate limits, from mobile/docs/02-backend-connection. */
-  createBoardPerHour: 10,
-  pinAttemptsPerMinute: 5,
-  registerPerHour: 10,
+  /** Rate limits, from mobile/docs/02-backend-connection. Env overrides are for load tests only. */
+  createBoardPerHour: Number(env.CREATE_BOARD_PER_HOUR ?? 10),
+  pinAttemptsPerMinute: Number(env.PIN_PER_MINUTE ?? 5),
+  registerPerHour: Number(env.REGISTER_PER_HOUR ?? 10),
   /** Per address and per username. */
-  loginAttemptsPerMinute: 10,
+  loginAttemptsPerMinute: Number(env.LOGIN_PER_MINUTE ?? 10),
 } as const;
