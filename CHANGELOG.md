@@ -7,6 +7,10 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Licensed under the MIT License, replacing PolyForm Noncommercial 1.0.0.
+
 ## [1.8.0-beta] - 2026-10-28
 
 ### Added
