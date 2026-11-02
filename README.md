@@ -114,6 +114,4 @@ SIGTERM/SIGINT.
 
 ## License
 
-[PolyForm Noncommercial License 1.0.0](LICENSE): free for any noncommercial
-use; commercial use is reserved to the author,
-[@Juan17la](https://github.com/Juan17la).
+[MIT License](LICENSE).
