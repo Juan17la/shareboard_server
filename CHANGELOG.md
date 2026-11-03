@@ -7,9 +7,27 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Accounts have an email: required to register, and sign-in takes the username or the email. With `REQUIRE_EMAIL_VERIFICATION=true`, sharing (creating or importing a live board) needs a verified email (`EMAIL_UNVERIFIED`) and a 6-digit code is emailed over SMTP — Gmail with an App Password by default (`SMTP_USER`, `SMTP_PASS`; `SMTP_HOST`/`SMTP_PORT` for any other server, e.g. Amazon SES) — or printed to the log in development. Off by default: accounts share as soon as they are created, and `account.verificationRequired` tells the apps which way it is.
+- `POST /me/email` (add or change the email, with the password), `/me/email/resend`, `/me/email/verify`, `POST /me/password` (change it, with the current one), `POST /auth/password/forgot` and `/auth/password/reset`.
+- `TRUST_PROXY`: proxy hops to believe, so per-address rate limits see the caller behind Render's load balancer.
+
 ### Changed
 
 - Licensed under the MIT License, replacing PolyForm Noncommercial 1.0.0.
+- Changing or resetting a password ends every other session (session tokens carry the account's `tokenVersion`).
+- Passwords are hashed with async scrypt at OWASP's parameters (N=2^14, r=8, p=5) off the event loop; older hashes still sign in and are upgraded on the next sign-in.
+- New passwords are refused if they are common or equal to the username or email.
+- Sign-in is rate-limited per account, whichever of its username or email is typed.
+- Dependencies: `npm audit fix` (fastify 5.12.7, fast-uri); nodemailer added for SMTP.
+- `/auth` and `/me` responses are `Cache-Control: no-store`; the `Authorization` header is redacted from logs.
+- The server refuses to start in production with the development `TOKEN_SECRET`.
+
+### Fixed
+
+- Figures and lines accept `textColor`, the colour of their label. Without this, clients' label colours are dropped.
+
 
 ## [1.8.0-beta] - 2026-10-28
 
