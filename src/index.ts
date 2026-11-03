@@ -1,11 +1,20 @@
 /** Entry point: connect Mongo (optional), start timers, serve, flush on exit. */
 import { buildApp } from './app.js';
-import { config } from './config.js';
+import { config, DEV_SECRET } from './config.js';
+import { verifyMail } from './mail.js';
 import { startRateLimitCleanup } from './rate-limit.js';
 import { flushAll, startSweeper } from './store/boards.js';
 import { closeMongo, connectMongo } from './store/mongo.js';
 
 const app = await buildApp();
+
+// Anyone who knows the default could sign tokens for any account.
+if (config.production && config.tokenSecret === DEV_SECRET) {
+  app.log.fatal('TOKEN_SECRET is not set: refusing to sign sessions with the development secret.');
+  process.exit(1);
+}
+// Not awaited: a slow or unreachable mail server must not hold up the start.
+void verifyMail(app.log);
 
 // Memory-only was the silent default and lost every board on restart.
 if (!config.mongoUrl && !config.memoryOnly) {

@@ -105,35 +105,96 @@ export function validatePin(v: unknown): string {
   return pin;
 }
 
-export interface CredentialsBody {
+export interface RegisterBody {
   /** Lower-cased. */
   username: string;
+  /** Lower-cased. */
+  email: string;
   password: string;
-  /** Register only: the name shown on boards. Login keeps the account's. */
-  nickname?: string;
+  /** The name shown on boards. */
+  nickname: string;
   avatar?: string;
   /** The guest id this device used until now: its boards move to the account. */
   deviceId?: string;
 }
 
-/** Register and login. Usernames: 3-24 of a-z 0-9 . _ ; passwords: 8-128 characters. */
-export function validateCredentials(body: unknown, register: boolean): CredentialsBody {
+/** Usernames: 3-24 of a-z 0-9 . _ ; passwords: see `validateNewPassword`. */
+export function validateRegister(body: unknown): RegisterBody {
   if (!isObject(body)) throw invalid('Body must be an object');
   const username = str(body.username, 'username', 24).trim().toLowerCase();
   if (!/^[a-z0-9._]{3,24}$/.test(username)) {
     throw invalid('"username" must be 3 to 24 letters, digits, dots or underscores');
   }
-  const password = str(body.password, 'password', 128);
-  if (register && password.length < LIMITS.minPasswordLength) {
-    throw invalid(`"password" must be at least ${LIMITS.minPasswordLength} characters`);
-  }
+  const email = validateEmail(body.email);
   return {
     username,
-    password,
-    ...(register ? { nickname: validateNickname(body.nickname) } : {}),
-    ...(register && body.avatar != null ? { avatar: str(body.avatar, 'avatar', 8) } : {}),
+    email,
+    password: validateNewPassword(body.password, [username, email]),
+    nickname: validateNickname(body.nickname),
+    ...(body.avatar != null ? { avatar: str(body.avatar, 'avatar', 8) } : {}),
     ...(body.deviceId != null ? { deviceId: str(body.deviceId, 'deviceId', 64) } : {}),
   };
+}
+
+export interface LoginBody {
+  /** Username or email, lower-cased. */
+  login: string;
+  password: string;
+  deviceId?: string;
+}
+
+/** Sign-in checks no rules on what was typed: older accounts may predate them. */
+export function validateLogin(body: unknown): LoginBody {
+  if (!isObject(body)) throw invalid('Body must be an object');
+  // `username`: apps up to 1.8.0-beta send the identifier under that name.
+  const login = str(body.login ?? body.username, 'login', 254).trim().toLowerCase();
+  return {
+    login,
+    password: str(body.password, 'password', 128),
+    ...(body.deviceId != null ? { deviceId: str(body.deviceId, 'deviceId', 64) } : {}),
+  };
+}
+
+export function validateEmail(v: unknown): string {
+  const email = str(v, 'email', 254).trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw invalid('"email" is not a valid email address');
+  return email;
+}
+
+/** Passwords people pick first; NIST 800-63B asks new passwords to be checked against such a list. */
+const COMMON_PASSWORDS = new Set([
+  'password', 'password1', 'password123', '12345678', '123456789', '1234567890', '87654321',
+  '11111111', '00000000', 'qwertyui', 'qwerty123', 'iloveyou', 'abcd1234', 'abc12345',
+  'contraseña', 'contrasena', 'shareboard', 'whiteboard', 'letmein1', 'welcome1', 'asdfghjk',
+]);
+
+/**
+ * A password being set (register, change, reset): 8-128 characters, not a
+ * common one, not the username or email. No composition rules (NIST 800-63B).
+ */
+export function validateNewPassword(v: unknown, avoid: string[] = []): string {
+  const password = str(v, 'password', 128);
+  if (password.length < LIMITS.minPasswordLength) {
+    throw invalid(`"password" must be at least ${LIMITS.minPasswordLength} characters`);
+  }
+  const lower = password.toLowerCase();
+  if (COMMON_PASSWORDS.has(lower) || avoid.some((a) => a && (lower === a || lower === a.split('@')[0]))) {
+    throw invalid('That password is too easy to guess');
+  }
+  return password;
+}
+
+/** The 6-digit code from an email. */
+export function validateCode(v: unknown): string {
+  const code = str(v, 'code', 12).replace(/\s/g, '');
+  if (!/^\d{6}$/.test(code)) throw invalid('"code" must be 6 digits');
+  return code;
+}
+
+/** A field of a JSON body as a string, for routes with one or two fields. */
+export function field(body: unknown, name: string, max: number): string {
+  if (!isObject(body)) throw invalid('Body must be an object');
+  return str(body[name], name, max);
 }
 
 export interface CreateBoardBody {
@@ -258,6 +319,7 @@ export function validateElement(input: unknown): BoardElement {
         from: point(input.from, 'from'),
         to: point(input.to, 'to'),
         stroke: color(input.stroke, 'stroke'),
+        ...(input.textColor != null ? { textColor: color(input.textColor, 'textColor') } : null),
         strokeWidth: inRange(
           num(input.strokeWidth, 'strokeWidth'),
           LIMITS.minStrokeWidth,
@@ -358,7 +420,7 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 const OPTIONAL = new Set([
   'group', 'rotation', 'opacity', 'fill', 'text', 'fontSize', 'sides', 'font', 'headStart', 'headEnd',
   'route', 'bend', 'dash', 'rounded', 'align', 'valign', 'vertices', 'fromLink', 'toLink', 'deleted', 'bold', 'italic', 'underline', 'width', 'labelAt',
-  'startAxis', 'endAxis', 'curveFrom', 'curveTo', 'locked', 'sticky',
+  'startAxis', 'endAxis', 'curveFrom', 'curveTo', 'locked', 'sticky', 'textColor',
 ]);
 const REQUIRED = new Set([
   'z', 'height', 'points', 'color', 'stroke', 'strokeWidth', 'from', 'to', 'at', 'shape', 'uri',
@@ -404,6 +466,7 @@ export function validatePatch(raw: Record<string, unknown>): Partial<BoardElemen
         break;
       case 'color':
       case 'stroke':
+      case 'textColor':
       case 'fill':
         out[key] = color(v, key);
         break;

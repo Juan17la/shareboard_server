@@ -12,8 +12,8 @@ import { config } from './config.js';
 import type { Role, UserId } from './model/types.js';
 
 const TTL_MS = 12 * 60 * 60 * 1000;
-// ponytail: no revocation list — signing out only forgets the token on the device.
-// Rotating TOKEN_SECRET ends every session; a per-user token version would end one.
+// A session carries its account's `tokenVersion`; changing or resetting the
+// password bumps it, which ends every other session (routes/auth.ts checks it).
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface BoardTokenPayload {
@@ -26,6 +26,8 @@ export interface BoardTokenPayload {
 interface SessionTokenPayload {
   kind: 'session';
   userId: UserId;
+  /** The account's tokenVersion when issued; absent on tokens from before it existed (= 0). */
+  tv: number;
   exp: number;
 }
 
@@ -66,12 +68,30 @@ export function verifyBoardToken(token: string | undefined): BoardTokenPayload |
   return payload && typeof payload.boardId === 'string' ? (payload as unknown as BoardTokenPayload) : null;
 }
 
-export function issueSessionToken(userId: UserId): string {
-  return issue({ kind: 'session', userId, exp: Date.now() + SESSION_TTL_MS } satisfies SessionTokenPayload);
+export function issueSessionToken(userId: UserId, tokenVersion: number): string {
+  return issue({
+    kind: 'session',
+    userId,
+    tv: tokenVersion,
+    exp: Date.now() + SESSION_TTL_MS,
+  } satisfies SessionTokenPayload);
 }
 
-/** The account the token proves, or null. */
-export function verifySessionToken(token: string | undefined): UserId | null {
+/** The account the token claims and the version it was issued at, or null. Not yet checked against the account. */
+export function verifySessionToken(token: string | undefined): { userId: UserId; tv: number } | null {
   const payload = verify(token);
-  return payload?.kind === 'session' && typeof payload.userId === 'string' ? payload.userId : null;
+  if (payload?.kind !== 'session' || typeof payload.userId !== 'string') return null;
+  return { userId: payload.userId, tv: typeof payload.tv === 'number' ? payload.tv : 0 };
+}
+
+/** What an emailed code is stored as: keyed by the secret, so a leaked database cannot be brute-forced offline. */
+export function codeHash(purpose: string, userId: UserId, code: string): string {
+  return sign(`code:${purpose}:${userId}:${code}`);
+}
+
+/** Constant-time comparison of two `codeHash` results. */
+export function sameHash(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
 }
