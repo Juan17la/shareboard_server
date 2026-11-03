@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.9.0-beta] - 2026-11-03
+
 ### Added
 
 - Accounts have an email: required to register, and sign-in takes the username or the email. With `REQUIRE_EMAIL_VERIFICATION=true`, sharing (creating or importing a live board) needs a verified email (`EMAIL_UNVERIFIED`) and a 6-digit code is emailed over SMTP — Gmail with an App Password by default (`SMTP_USER`, `SMTP_PASS`; `SMTP_HOST`/`SMTP_PORT` for any other server, e.g. Amazon SES) — or printed to the log in development. Off by default: accounts share as soon as they are created, and `account.verificationRequired` tells the apps which way it is.
