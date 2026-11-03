@@ -43,7 +43,9 @@ back from MongoDB on the next visit.
 ## Deploy (Render)
 
 `render.yaml` is a Blueprint: Dashboard → New → Blueprint → this repo, then
-fill `MONGO_URL`, `CORS_ORIGIN` and `AI_API_KEY`. On MongoDB Atlas, add Render
+fill `MONGO_URL`, `CORS_ORIGIN`, `AI_API_KEY`, `SMTP_USER` and `SMTP_PASS` (see
+"Email" below; Render's free plan blocks SMTP, so emails only go out on a paid
+instance). On MongoDB Atlas, add Render
 under **Network Access** (`0.0.0.0/0`, or the service's outbound IPs) — without
 it the connection fails with `tlsv1 alert internal error` (SSL alert 80) and
 the server exits. `GET /health` answers 503 until the database does, so a
@@ -55,6 +57,50 @@ marked `ponytail:` in the code: `ws/hub.ts` broadcasts over a Redis channel per
 board, `rate-limit.ts` counts with `INCR`/`PEXPIRE`, and the load balancer
 routes each board id to one instance (sticky) so `store/boards.ts` keeps a
 single live copy. MongoDB stays the source of truth.
+
+## Email (Gmail)
+
+Email verification is off unless `REQUIRE_EMAIL_VERIFICATION=true`: accounts
+share as soon as they are created, and only password-reset codes are emailed.
+Verification and password-reset codes are sent over SMTP, from your own Gmail
+account by default — no domain needed:
+
+1. Turn on 2-Step Verification on the Google account.
+2. Google Account → Security → 2-Step Verification → **App passwords**: create
+   one (name it "Shareboard"). Google shows 16 letters once.
+3. In `.env` (or the host's environment):
+
+   ```bash
+   SMTP_USER=you@gmail.com
+   SMTP_PASS=abcdabcdabcdabcd   # the App Password, without spaces — never the account password
+   # Optional: MAIL_FROM (defaults to SMTP_USER), MAIL_FROM_NAME (Shareboard),
+   # SMTP_HOST (smtp.gmail.com), SMTP_PORT (465; 587 uses STARTTLS)
+   ```
+
+On start the server signs in to SMTP and logs `Email: sending as …`, or the
+error if the App Password is wrong. Without `SMTP_USER`/`SMTP_PASS` emails are
+printed to the log (codes included) in development, and dropped with an error
+in production. Gmail allows about 500 emails a day from a personal account.
+Any SMTP server works the same way through `SMTP_HOST`/`SMTP_PORT`, e.g.
+Amazon SES (`email-smtp.<region>.amazonaws.com`, port 587, its SMTP
+credentials), if the app outgrows Gmail.
+
+## Deploy (AWS EC2)
+
+EC2 lets SMTP out on 465 and 587 (only port 25 is throttled), so Gmail works
+there as is:
+
+1. Security group: inbound 22 (your IP) and the server port (or 80/443 behind
+   a reverse proxy); outbound is open by default.
+2. Install Node 22 and MongoDB (or point `MONGO_URL` at Atlas), copy the repo,
+   then `npm ci --include=dev && npm run build`.
+3. Environment (a systemd `EnvironmentFile`, or `.env` next to `package.json`):
+   `NODE_ENV=production`, `TOKEN_SECRET` (`openssl rand -hex 32`; the server
+   refuses the default in production), `MONGO_URL`, `CORS_ORIGIN`, `SMTP_USER`,
+   `SMTP_PASS`, and `TRUST_PROXY=1` only if a reverse proxy or load balancer
+   sits in front (leave it unset when clients reach Node directly, or anyone
+   could fake their address with `X-Forwarded-For`).
+4. `npm start`, and check the log for `Email: sending as …`.
 
 ## REST
 

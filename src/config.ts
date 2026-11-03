@@ -1,12 +1,22 @@
 /** Environment configuration. Every value has a local-dev default. */
 const env = process.env;
 
+export const DEV_SECRET = 'dev-secret-change-me';
+
 export const config = {
   port: Number(env.PORT ?? 3000),
   host: env.HOST ?? '0.0.0.0',
   /** '*' or a comma-separated origin list. */
   corsOrigin: env.CORS_ORIGIN ?? '*',
-  tokenSecret: env.TOKEN_SECRET ?? 'dev-secret-change-me',
+  tokenSecret: env.TOKEN_SECRET ?? DEV_SECRET,
+  production: env.NODE_ENV === 'production',
+  /**
+   * Proxies in front of this server whose X-Forwarded-For can be believed, so
+   * `req.ip` (and every per-address rate limit) is the caller's and not the
+   * load balancer's. Unset: 0. A hop count, not `true`: the left of the
+   * header is whatever the client wrote.
+   */
+  trustProxy: Number(env.TRUST_PROXY ?? 0),
   /** Required: the server refuses to start without it unless MEMORY_ONLY=true. */
   mongoUrl: env.MONGO_URL?.trim() ?? '',
   mongoDb: env.MONGO_DB ?? 'shareboard',
@@ -36,4 +46,30 @@ export const config = {
   registerPerHour: Number(env.REGISTER_PER_HOUR ?? 10),
   /** Per address and per username. */
   loginAttemptsPerMinute: Number(env.LOGIN_PER_MINUTE ?? 10),
+  /**
+   * Sharing needs a verified email, and new emails get a code. Off (the
+   * default for now): accounts share as soon as they exist; emails are still
+   * stored, and still used for password resets.
+   */
+  requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION === 'true',
+  /** Emails (verification and reset codes) to one account; one a minute on top. */
+  mailsPerHour: 6,
+  /** Wrong guesses one emailed code allows before it is spent. */
+  codeAttempts: 5,
+  codeTtlMs: 15 * 60_000,
+
+  /**
+   * Outgoing mail over SMTP. Defaults are Gmail's: SMTP_USER is the Gmail
+   * address, SMTP_PASS an App Password (Google Account → Security → 2-Step
+   * Verification → App passwords), never the account password. Unset:
+   * emails are printed to the log (dev only). Any SMTP server works, e.g.
+   * Amazon SES's (email-smtp.<region>.amazonaws.com, 587).
+   */
+  smtpHost: env.SMTP_HOST ?? 'smtp.gmail.com',
+  smtpPort: Number(env.SMTP_PORT ?? 465),
+  smtpUser: env.SMTP_USER ?? '',
+  smtpPass: env.SMTP_PASS ?? '',
+  /** The From address; Gmail only sends as the signed-in account (or its verified aliases). */
+  mailFrom: env.MAIL_FROM ?? env.SMTP_USER ?? '',
+  mailFromName: env.MAIL_FROM_NAME ?? 'Shareboard',
 } as const;

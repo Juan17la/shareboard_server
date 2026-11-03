@@ -25,7 +25,7 @@ import { persistenceEnabled, pingMongo } from '../store/mongo.js';
 import { issueBoardToken } from '../tokens.js';
 import * as hub from '../ws/hub.js';
 import { PRESENCE_COLORS } from '../model/types.js';
-import { accountOf, assertIdentity, isAccountId, tokenFor, userIdOf } from './auth.js';
+import { assertIdentity, isAccountId, sharerOf, tokenFor, userIdOf } from './auth.js';
 
 /** Only the creator may rename or change permissions. */
 function assertCreator(board: store.ActiveBoard, userId: string): void {
@@ -47,8 +47,8 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       throw new AppError('RATE_LIMITED', 'Too many boards created from this address');
     }
     const body = validateCreateBoard(req.body);
-    // A live board is a shared one, and sharing needs an account.
-    if (accountOf(req) !== body.creatorId) throw forbidden('A board is created by the signed-in account');
+    // A live board is a shared one, and sharing needs an account with a verified email.
+    if ((await sharerOf(req)) !== body.creatorId) throw forbidden('A board is created by the signed-in account');
     const board = await store.createBoard({
       name: body.name,
       access: body.access,
@@ -74,7 +74,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { id: string } }>('/boards/:id/join', async (req) => {
     const board = await store.getBoard(req.params.id);
     const body = validateJoin(req.body);
-    assertIdentity(req, body.userId);
+    await assertIdentity(req, body.userId);
     // An account that made the board, or got in since the PIN was last set,
     // is not asked again. A guest always is: its id proves nothing.
     const account = isAccountId(body.userId);
@@ -195,7 +195,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
    * preview, and the limit is per address as well as per user.
    */
   app.post<{ Body: { prompt?: unknown; at?: Point } }>('/ai', async (req) => {
-    const userId = userIdOf(req);
+    const userId = await userIdOf(req);
     if (!allow(`ai:${userId}`, config.aiPerMinute, 60_000) || !allow(`ai:${req.ip}`, config.aiPerMinute, 60_000)) {
       throw new AppError('RATE_LIMITED', 'Too many AI requests, wait a minute');
     }
@@ -247,7 +247,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       if (!allow(`create:${req.ip}`, config.createBoardPerHour, 3_600_000)) {
         throw new AppError('RATE_LIMITED', 'Too many boards created from this address');
       }
-      const creatorId = accountOf(req);
+      const creatorId = await sharerOf(req);
       const snapshot = validateSnapshot(req.body?.snapshot);
       const board = await store.createBoard({
         name: snapshot.meta.name,
