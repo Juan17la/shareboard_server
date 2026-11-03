@@ -85,6 +85,11 @@ export type ServerErrorCode =
   /** Wrong username or password. */
   | 'LOGIN_INVALID'
   | 'USERNAME_TAKEN'
+  | 'EMAIL_TAKEN'
+  /** Sharing needs a verified email; the account has none, or has not entered its code. */
+  | 'EMAIL_UNVERIFIED'
+  /** An emailed code that is wrong, expired or used up. */
+  | 'CODE_INVALID'
   | 'FORBIDDEN'
   | 'NICKNAME_TAKEN'
   | 'RATE_LIMITED'

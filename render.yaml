@@ -27,6 +27,19 @@ services:
       # The web app's URL, e.g. https://shareboard-web.onrender.com ("*" allows any).
       - key: CORS_ORIGIN
         sync: false
+      # Verification and password-reset emails go out over SMTP (Gmail by
+      # default), and Render's free plan blocks outbound SMTP: on `plan: free`
+      # no email is sent. Use a paid instance, or run the server on EC2
+      # (README → "Deploy (AWS EC2)").
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      # Proxy hops whose X-Forwarded-For is believed, so per-address rate limits
+      # see the caller and not Render's load balancer. Check `req.ip` in the logs
+      # after a deploy: it should be your own address, not a 10.x one.
+      - key: TRUST_PROXY
+        value: "1"
       - key: AI_PROVIDER
         value: gemini
       - key: AI_API_KEY

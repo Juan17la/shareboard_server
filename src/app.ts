@@ -11,7 +11,12 @@ import { boardRoutes } from './routes/boards.js';
 import { realtimeRoutes } from './ws/index.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    // The `trustProxy` hop count, as a function: the typings take no number.
+    trustProxy: (_addr: string, hop: number) => hop < config.trustProxy,
+    // Never write a token or a password into the request log.
+    logger: { redact: ['req.headers.authorization'] },
+  });
 
   await app.register(cors, {
     origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',').map((o) => o.trim()),
