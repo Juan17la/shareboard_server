@@ -16,6 +16,9 @@ assert.deepEqual(patch({ points: [0, 0, 1, 1] }), { points: [0, 0, 1, 1] });
 assert.deepEqual(patch({ z: -3, group: null, deleted: null, fill: null, text: '' }), { z: -3, group: null, deleted: null, fill: null, text: '' });
 assert.deepEqual(patch({ fromLink: { id: 'b', u: 0.5, v: 1 }, toLink: null, bend: null }), { fromLink: { id: 'b', u: 0.5, v: 1 }, toLink: null, bend: null });
 assert.deepEqual(patch({ width: 120, fontSize: 9999, strokeWidth: 0 }), { width: 120, fontSize: 400, strokeWidth: 1 });
+// A figure's label has a colour of its own, which an undo can unset.
+assert.deepEqual(patch({ textColor: '#FF0000' }), { textColor: '#FF0000' });
+assert.deepEqual(patch({ textColor: null }), { textColor: null });
 // A line's label moves along it: clamped to 0..1, and unset by an undo of a first move.
 assert.deepEqual(patch({ labelAt: 0.3 }), { labelAt: 0.3 });
 assert.deepEqual(patch({ labelAt: 7 }), { labelAt: 1 });

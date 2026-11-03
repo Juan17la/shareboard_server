@@ -95,6 +95,8 @@ export interface ShapeElement extends ElementBase {
   from: Point;
   to: Point;
   stroke: string;
+  /** The label's colour; absent, it takes the border's. */
+  textColor?: string;
   strokeWidth: number;
   fill?: string | null;
   /** Optional label, centred inside the shape (on the midpoint of a line). */
