@@ -7,6 +7,30 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `WORKERS=n` runs n Node processes on one machine, each board always on the
+  same one, so the realtime fan-out can use more than one core (`src/workers.ts`).
+  Unset or 1: one process, as before. Needs MongoDB.
+- `BROADCAST_FLUSH_MS` (default 25): how long broadcasts wait to share one write per socket.
+- `bufferutil` as an optional dependency, which `ws` uses when present.
+
+### Changed
+
+- Broadcasts are serialized once and written in batches, instead of one
+  `JSON.stringify` and one `writev` per message and per recipient.
+- New passwords use Argon2id on Node 24.7+ (about 6 times cheaper than the
+  previous scrypt, at OWASP's minimum for both). Older hashes upgrade on the next
+  sign-in. On Node 22 passwords keep using scrypt. Going back to Node 22 after
+  that leaves upgraded accounts unable to sign in until they reset their password.
+- Checking or setting a board PIN no longer blocks the main thread (~45 ms each).
+- Each incoming socket message is decoded once, and a preview is no longer
+  serialized again to check its size: the frame's length is what is measured now.
+
+### Fixed
+
+- `npm run smoke` signs up with an email, which registration requires.
+
 ## [1.9.0-beta] - 2026-11-03
 
 ### Added

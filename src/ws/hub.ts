@@ -6,7 +6,13 @@
  * phone — and every one of them gets the board's traffic. Only a socket from
  * the same tab (`tab`, sent in `join`) replaces an older one: that is the tab
  * reconnecting, and the old socket is a leftover.
+ *
+ * Broadcasts are serialized once and sent in batches: the realtime path's
+ * largest cost is the `writev` per frame and per recipient (46 % of the main
+ * thread under load, against ~7 % for building the frames), so each socket
+ * gets one write per `config.broadcastFlushMs`, whatever fits in it.
  */
+import { config } from '../config.js';
 import type { ServerMessage } from '../model/protocol.js';
 import type { UserId } from '../model/types.js';
 
@@ -14,11 +20,24 @@ export interface Client {
   userId: UserId;
   /** The sender's tab (page load); empty for clients that don't send one. */
   tab: string;
+  /** Sends now, after whatever is queued, so a client sees messages in order. */
   send(msg: ServerMessage): void;
+  /** Queues an already serialized frame for the next `flush`. */
+  enqueue(text: string): void;
+  /** Writes the queued frames in one go. */
+  flush(): void;
   close(code: number, reason: string): void;
 }
 
 const rooms = new Map<string, Set<Client>>();
+const dirty = new Set<Client>();
+let flushTimer: NodeJS.Timeout | null = null;
+
+function flushDirty(): void {
+  flushTimer = null;
+  for (const client of dirty) client.flush();
+  dirty.clear();
+}
 
 /** Adds a client, returning the one it replaced from the same tab, if any. */
 export function join(boardId: string, client: Client): Client | undefined {
@@ -31,18 +50,26 @@ export function join(boardId: string, client: Client): Client | undefined {
 }
 
 export function leave(boardId: string, client: Client): void {
+  dirty.delete(client);
   const room = rooms.get(boardId);
   if (!room?.delete(client)) return; // already replaced by a newer socket
   if (room.size === 0) rooms.delete(boardId);
 }
 
-// ponytail: rooms are per process, so one instance serves every board. To run
-// several, publish here to a Redis channel per board and deliver on each
-// instance's subscriber (rooms stay local; only the fan-out crosses processes).
+// Rooms are per process, and a board's sockets all land on the worker that owns
+// it (workers.ts), so this never has to cross processes on one machine.
+// ponytail: across machines, route the same way at the load balancer.
 export function broadcast(boardId: string, msg: ServerMessage, exceptUserId?: UserId): void {
-  for (const client of rooms.get(boardId) ?? []) {
-    if (client.userId !== exceptUserId) client.send(msg);
+  const room = rooms.get(boardId);
+  if (!room) return;
+  let text: string | undefined;
+  for (const client of room) {
+    if (client.userId === exceptUserId) continue;
+    client.enqueue((text ??= JSON.stringify(msg)));
+    if (config.broadcastFlushMs > 0) dirty.add(client);
+    else client.flush();
   }
+  if (dirty.size > 0) flushTimer ??= setTimeout(flushDirty, config.broadcastFlushMs);
 }
 
 export function clientsOf(boardId: string): Client[] {
