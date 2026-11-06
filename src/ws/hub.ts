@@ -56,9 +56,9 @@ export function leave(boardId: string, client: Client): void {
   if (room.size === 0) rooms.delete(boardId);
 }
 
-// ponytail: rooms are per process, so one instance serves every board. To run
-// several, publish here to a Redis channel per board and deliver on each
-// instance's subscriber (rooms stay local; only the fan-out crosses processes).
+// Rooms are per process, and a board's sockets all land on the worker that owns
+// it (workers.ts), so this never has to cross processes on one machine.
+// ponytail: across machines, route the same way at the load balancer.
 export function broadcast(boardId: string, msg: ServerMessage, exceptUserId?: UserId): void {
   const room = rooms.get(boardId);
   if (!room) return;

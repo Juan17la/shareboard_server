@@ -11,6 +11,7 @@ import { config } from '../config.js';
 import { notFound } from '../errors.js';
 import { generateShortCode } from '../model/short-code.js';
 import type { BoardElement, BoardMeta, Participant, UserId } from '../model/types.js';
+import { onWorkerEvent, ownsBoard, publish } from '../workers.js';
 import * as db from './mongo.js';
 
 export interface ActiveBoard {
@@ -130,6 +131,15 @@ export async function createBoard(input: {
     dirty: true,
   };
 
+  // Ids are random, so boards spread over the workers even when one address makes
+  // them all (a school behind one IP). One that belongs elsewhere is only stored:
+  // its worker loads it on first use, and there is never a second live copy.
+  if (!ownsBoard(board.meta.id)) {
+    board.dirty = false;
+    await db.saveBoard(toDoc(board));
+    return board;
+  }
+
   // Saved before anyone gets its id: a board that exists is always in the db.
   remember(board);
   try {
@@ -145,6 +155,9 @@ export async function createBoard(input: {
 export async function getBoard(id: string): Promise<ActiveBoard> {
   const hot = active.get(id);
   if (hot) return hot;
+  // Routing sends a board's requests to its worker. A second live copy elsewhere
+  // would overwrite the first one's saves, so an odd URL gets a 404 instead.
+  if (!ownsBoard(id)) throw notFound();
 
   let pending = loading.get(id);
   if (!pending) {
@@ -228,13 +241,19 @@ export async function listBoardsFor(userId: UserId, limit = 100): Promise<BoardL
 
 /** A guest's boards become their account's: on register, and on sign-in from a device that made some. */
 export async function transferBoards(from: UserId, to: UserId): Promise<void> {
+  transferLiveBoards(from, to);
+  publish({ kind: 'transfer', from, to });
+  await db.transferBoards(from, to);
+}
+
+function transferLiveBoards(from: UserId, to: UserId): void {
   for (const board of active.values()) {
     if (board.meta.creatorId !== from) continue;
     board.meta.creatorId = to;
     touch(board);
   }
-  await db.transferBoards(from, to);
 }
+onWorkerEvent('transfer', ({ from, to }) => transferLiveBoards(from, to));
 
 export function isNicknameTaken(board: ActiveBoard, nickname: string, userId: UserId): boolean {
   const wanted = nickname.toLowerCase();
