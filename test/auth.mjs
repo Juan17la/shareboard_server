@@ -174,7 +174,7 @@ assert.equal((await call('POST', '/auth/login', { body: { login: 'ana.b', passwo
 const usersStore = await import('../src/store/users.ts');
 const { hashPin } = await import('../src/pin.ts');
 const oldId = usersStore.newAccountId();
-await usersStore.createUser({ _id: oldId, username: 'old.timer', passwordHash: hashPin('old password'), nickname: 'Old', createdAt: 1 });
+await usersStore.createUser({ _id: oldId, username: 'old.timer', passwordHash: await hashPin('old password'), nickname: 'Old', createdAt: 1 });
 const oldLogin = await call('POST', '/auth/login', { body: { username: 'old.timer', password: 'old password' } });
 assert.equal(oldLogin.status, 200);
 assert.equal(oldLogin.body.account.email, null);

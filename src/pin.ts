@@ -1,16 +1,22 @@
 /** PIN and password hashing (scrypt). Neither is ever stored or returned in clear. */
-import { randomBytes, scrypt, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
-export function hashPin(pin: string): string {
+const scryptAsync = (secret: string, salt: Buffer, params: object) =>
+  new Promise<Buffer>((resolve, reject) =>
+    scrypt(secret, salt, 32, params, (err, key) => (err ? reject(err) : resolve(key))),
+  );
+
+/** Async: a PIN takes ~45 ms of CPU, which on the main thread would freeze every board's sockets. */
+export async function hashPin(pin: string): Promise<string> {
   const salt = randomBytes(16);
-  const key = scryptSync(pin, salt, 32);
+  const key = await scryptAsync(pin, salt, {});
   return `${salt.toString('hex')}:${key.toString('hex')}`;
 }
 
-export function verifyPin(pin: string, stored: string): boolean {
+export async function verifyPin(pin: string, stored: string): Promise<boolean> {
   const [saltHex, keyHex] = stored.split(':');
   if (!saltHex || !keyHex) return false;
-  const key = scryptSync(pin, Buffer.from(saltHex, 'hex'), 32);
+  const key = await scryptAsync(pin, Buffer.from(saltHex, 'hex'), {});
   const expected = Buffer.from(keyHex, 'hex');
   return key.length === expected.length && timingSafeEqual(key, expected);
 }
@@ -23,11 +29,6 @@ export function verifyPin(pin: string, stored: string): boolean {
  * still verifies, and `needsRehash` tells the caller to upgrade it.
  */
 const PASSWORD_PARAMS = { N: 2 ** 14, r: 8, p: 5 };
-
-const scryptAsync = (password: string, salt: Buffer, params: typeof PASSWORD_PARAMS | object) =>
-  new Promise<Buffer>((resolve, reject) =>
-    scrypt(password, salt, 32, params, (err, key) => (err ? reject(err) : resolve(key))),
-  );
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
