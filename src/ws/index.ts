@@ -3,6 +3,7 @@
  * JSON frames over a standard WebSocket — see docs/07-websockets.
  */
 import type { FastifyInstance } from 'fastify';
+import type { Socket } from 'node:net';
 import type { WebSocket } from 'ws';
 
 import { AppError } from '../errors.js';
@@ -28,14 +29,32 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
         return;
       }
 
+      const queued: string[] = [];
+      const flush = () => {
+        if (queued.length === 0) return;
+        if (socket.readyState === socket.OPEN) {
+          // ws offers no batching of its own: corking its TCP socket makes these frames one write.
+          const tcp = (socket as unknown as { _socket: Socket })._socket;
+          tcp.cork();
+          for (const text of queued) socket.send(text);
+          tcp.uncork();
+        }
+        queued.length = 0;
+      };
       const send = (msg: ServerMessage) => {
+        flush();
         if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(msg));
       };
       const client: hub.Client = {
         userId: auth.userId,
         tab: '',
         send,
-        close: (code, reason) => socket.close(code, reason),
+        enqueue: (text) => void queued.push(text),
+        flush,
+        close: (code, reason) => {
+          flush();
+          socket.close(code, reason);
+        },
       };
 
       let joined = false;
@@ -198,10 +217,11 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
       }
 
       /** Relayed to the others as it comes, never stored; too big, too often or from a viewer, dropped. */
-      async function onPreview(msg: Extract<ClientMessage, { type: 'preview' }>) {
+      async function onPreview(msg: Extract<ClientMessage, { type: 'preview' }>, chars: number) {
         const board = await store.getBoard(boardId!);
         if (!canEdit(board.meta, auth!.userId)) return;
-        if (msg.preview !== null && JSON.stringify(msg.preview).length > REALTIME.maxPreviewBytes) return;
+        // The frame's own length: serializing the preview again ~30 times a second only to measure it is waste.
+        if (msg.preview !== null && chars > REALTIME.maxPreviewBytes) return;
         // The end of a preview always goes through: dropping it would leave a ghost on everyone's board.
         if (msg.preview !== null && !allow(`preview:${auth!.userId}:${boardId}`, REALTIME.maxPreviewsPerSecond, 1000)) {
           return;
@@ -226,14 +246,15 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
 
       socket.on('message', (raw) => {
         lastSeenAt = Date.now();
-        if (raw.toString().length > REALTIME.maxMessageBytes) {
+        const text = raw.toString();
+        if (text.length > REALTIME.maxMessageBytes) {
           socket.close(CloseCode.BAD_REQUEST, 'Message too large');
           return;
         }
 
         let msg: ClientMessage;
         try {
-          msg = JSON.parse(raw.toString()) as ClientMessage;
+          msg = JSON.parse(text) as ClientMessage;
         } catch {
           send({ type: 'error', code: 'VALIDATION', message: 'Malformed JSON' });
           return;
@@ -262,11 +283,11 @@ export async function realtimeRoutes(app: FastifyInstance): Promise<void> {
           timer: onTimer,
         } as const;
         const run = handlers[msg.type as keyof typeof handlers] as
-          | ((m: ClientMessage) => Promise<void>)
+          | ((m: ClientMessage, chars: number) => Promise<void>)
           | undefined;
         // A message type this server does not know (a newer client) is ignored.
         if (!run) return;
-        const handler = run(msg);
+        const handler = run(msg, text.length);
 
         handler.catch((err: unknown) => {
           // A refused batch was already applied on the sender's screen: hand
