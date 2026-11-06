@@ -54,7 +54,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       access: body.access,
       editPolicy: body.editPolicy,
       creatorId: body.creatorId,
-      pinHash: body.pin ? hashPin(body.pin) : null,
+      pinHash: body.pin ? await hashPin(body.pin) : null,
     });
     return reply.code(201).send(board.meta);
   });
@@ -85,7 +85,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
         throw new AppError('RATE_LIMITED', 'Too many PIN attempts, try again shortly');
       }
       if (!body.pin) throw new AppError('PIN_REQUIRED', 'This board requires a PIN');
-      if (!verifyPin(body.pin, board.pinHash)) throw new AppError('PIN_INVALID', 'Incorrect PIN');
+      if (!(await verifyPin(body.pin, board.pinHash))) throw new AppError('PIN_INVALID', 'Incorrect PIN');
     }
     if (store.isNicknameTaken(board, body.nickname, body.userId)) {
       throw new AppError('NICKNAME_TAKEN', 'That nickname is in use here');
@@ -152,7 +152,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
     assertCreator(board, tokenFor(req, board.meta.id).userId);
     const patch = validatePermissions(req.body);
 
-    if (patch.pin !== undefined) board.pinHash = patch.pin === null ? null : hashPin(patch.pin);
+    if (patch.pin !== undefined) board.pinHash = patch.pin === null ? null : await hashPin(patch.pin);
     // A new PIN is asked of everyone again: whoever it was changed to keep out is out.
     if (typeof patch.pin === 'string') board.members.clear();
     board.meta = {
