@@ -51,12 +51,21 @@ it the connection fails with `tlsv1 alert internal error` (SSL alert 80) and
 the server exits. `GET /health` answers 503 until the database does, so a
 deploy only takes traffic once it can save boards.
 
-One instance holds each board in memory, so run a single instance (plenty for
-~100 users). To scale out with Redis, three per-process pieces change, each
-marked `ponytail:` in the code: `ws/hub.ts` broadcasts over a Redis channel per
-board, `rate-limit.ts` counts with `INCR`/`PEXPIRE`, and the load balancer
-routes each board id to one instance (sticky) so `store/boards.ts` keeps a
-single live copy. MongoDB stays the source of truth.
+To use more than one core, set `WORKERS` to the number of Node processes (up to
+one per physical core; it needs MongoDB). Each board always lives on one of them,
+so its copy in memory stays the only one and its room stays in one process:
+`src/workers.ts` routes each connection, and REST responses say `Connection:
+close` so a connection never carries a request for another worker's board. One
+CPU of quota or a single physical core (a t3.small) gains little from it.
+
+Several machines need more: the load balancer has to route each board id the same
+way, `rate-limit.ts` has to count with `INCR`/`PEXPIRE` in Redis, and the session
+cache in `store/users.ts` has to learn about other machines' changes. MongoDB stays
+the source of truth.
+
+Passwords use Argon2id on Node 24.7+ and scrypt on Node 22. Older hashes upgrade on
+the next sign-in, so going back to Node 22 afterwards leaves those accounts unable
+to sign in until they reset their password.
 
 ## Email (Gmail)
 
