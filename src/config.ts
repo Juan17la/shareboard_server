@@ -25,6 +25,13 @@ export const config = {
   /** Connections per server process. The driver's default (100) is far more than one instance needs. */
   mongoPoolSize: Number(env.MONGO_POOL_SIZE ?? 20),
 
+  /**
+   * Broadcasts wait up to this long to share one write per socket. The biggest
+   * lever on the realtime path; 0 sends each one at once, as a fair comparison
+   * or if the delay is ever noticed. A live cursor updates every 45 ms anyway.
+   */
+  broadcastFlushMs: Math.max(0, Number(env.BROADCAST_FLUSH_MS ?? 25) || 0),
+
   /** Every change reaches Mongo within this window; edits inside it share one write. */
   writeDelayMs: Number(env.WRITE_DELAY_MS ?? 1000),
   retryDelayMs: 5_000,
