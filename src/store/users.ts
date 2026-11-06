@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { UserId } from '../model/types.js';
+import { onWorkerEvent, publish } from '../workers.js';
 import * as db from './mongo.js';
 
 export type User = db.UserDoc;
@@ -56,14 +57,15 @@ export async function updateUser(user: User, patch: Partial<User>): Promise<'ema
     else (user as unknown as Record<string, unknown>)[k] = v;
   }
   sessionCache.delete(user._id);
+  publish({ kind: 'session', id: user._id });
   return null;
 }
 
 /**
  * What every signed-in request checks: the account still exists, its token
  * version, whether its email is verified. Cached briefly so a request costs no
- * database round-trip; this process's own writes clear the entry at once.
- * ponytail: with several instances another one's password change takes up to
+ * database round-trip; writes from this machine's workers clear the entry at once.
+ * ponytail: with several machines another one's password change takes up to
  * SESSION_CACHE_MS to end a session here; publish invalidations if that matters.
  */
 export interface SessionState {
@@ -73,6 +75,7 @@ export interface SessionState {
 
 const SESSION_CACHE_MS = 30_000;
 const sessionCache = new Map<UserId, SessionState & { at: number }>();
+onWorkerEvent('session', ({ id }) => sessionCache.delete(id));
 
 export async function sessionState(id: UserId): Promise<SessionState | null> {
   const now = Date.now();

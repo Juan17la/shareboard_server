@@ -30,6 +30,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     options: { maxPayload: REALTIME.maxMessageBytes },
   });
 
+  // The primary routes a connection once, by its first request (workers.ts): a
+  // kept-alive one would carry its next request to a worker that may not own that board.
+  if (config.workers > 1) {
+    app.addHook('onSend', async (_req, reply) => {
+      reply.header('connection', 'close');
+    });
+  }
+
   // Every 4xx/5xx uses { error: { code, message } }.
   app.setErrorHandler((err: FastifyError, _req, reply) => {
     if (err instanceof AppError) return reply.code(err.status).send(err.toBody());
