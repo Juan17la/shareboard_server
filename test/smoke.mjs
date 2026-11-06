@@ -56,7 +56,7 @@ const open = (boardId, token, userId, nickname) =>
 // Sharing a board needs an account: the creator signs up first.
 const signup = await json('/auth/register', {
   method: 'POST',
-  body: { username: `smoke_${Date.now().toString(36)}`, password: 'smoke password', nickname: 'Cre' },
+  body: { username: `smoke_${Date.now().toString(36)}`, email: `smoke_${Date.now().toString(36)}@example.test`, password: 'smoke password', nickname: 'Cre' },
 });
 assert.equal(signup.status, 201);
 const creator = signup.body.account.id;
