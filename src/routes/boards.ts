@@ -18,7 +18,7 @@ import {
   validatePermissions,
   validateSnapshot,
 } from '../model/validate.js';
-import { hashPin, verifyPin } from '../pin.js';
+import { hashPin, pinNeedsRehash, verifyPin } from '../pin.js';
 import { allow } from '../rate-limit.js';
 import * as store from '../store/boards.js';
 import { persistenceEnabled, pingMongo } from '../store/mongo.js';
@@ -54,7 +54,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       access: body.access,
       editPolicy: body.editPolicy,
       creatorId: body.creatorId,
-      pinHash: body.pin ? await hashPin(body.pin) : null,
+      pinHash: body.pin ? hashPin(body.pin) : null,
     });
     return reply.code(201).send(board.meta);
   });
@@ -86,6 +86,10 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
       }
       if (!body.pin) throw new AppError('PIN_REQUIRED', 'This board requires a PIN');
       if (!(await verifyPin(body.pin, board.pinHash))) throw new AppError('PIN_INVALID', 'Incorrect PIN');
+      if (pinNeedsRehash(board.pinHash)) {
+        board.pinHash = hashPin(body.pin);
+        store.touch(board);
+      }
     }
     if (store.isNicknameTaken(board, body.nickname, body.userId)) {
       throw new AppError('NICKNAME_TAKEN', 'That nickname is in use here');
@@ -152,7 +156,7 @@ export async function boardRoutes(app: FastifyInstance): Promise<void> {
     assertCreator(board, tokenFor(req, board.meta.id).userId);
     const patch = validatePermissions(req.body);
 
-    if (patch.pin !== undefined) board.pinHash = patch.pin === null ? null : await hashPin(patch.pin);
+    if (patch.pin !== undefined) board.pinHash = patch.pin === null ? null : hashPin(patch.pin);
     // A new PIN is asked of everyone again: whoever it was changed to keep out is out.
     if (typeof patch.pin === 'string') board.members.clear();
     board.meta = {

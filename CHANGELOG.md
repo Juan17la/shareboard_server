@@ -12,18 +12,24 @@ All notable changes to the Shareboard server. The format follows
 - `WORKERS=n` runs n Node processes on one machine, each board always on the
   same one, so the realtime fan-out can use more than one core (`src/workers.ts`).
   Unset or 1: one process, as before. Needs MongoDB.
-- `BROADCAST_FLUSH_MS` (default 25): how long broadcasts wait to share one write per socket.
+- `BROADCAST_FLUSH_MS` (default 0): an optional extra wait for broadcasts to share one write per socket.
 - `bufferutil` as an optional dependency, which `ws` uses when present.
 
 ### Changed
 
-- Broadcasts are serialized once and written in batches, instead of one
-  `JSON.stringify` and one `writev` per message and per recipient.
+- Broadcasts are serialized once and written in batches, one write per socket
+  per event-loop turn, instead of one `JSON.stringify` and one `writev` per
+  message and per recipient. They no longer wait 25 ms for a batch to fill: in
+  the load tests that added ~25 ms to every op, cursor and preview, at p50 too.
 - New passwords use Argon2id on Node 24.7+ (about 6 times cheaper than the
   previous scrypt, at OWASP's minimum for both). Older hashes upgrade on the next
   sign-in. On Node 22 passwords keep using scrypt. Going back to Node 22 after
   that leaves upgraded accounts unable to sign in until they reset their password.
-- Checking or setting a board PIN no longer blocks the main thread (~45 ms each).
+- Board PINs are an HMAC under `TOKEN_SECRET` (`p1$…`) instead of scrypt: ~45 ms
+  of CPU off every guest join to a PIN board, and a leaked database no longer
+  allows offline guessing without the secret. Older PIN hashes upgrade on the
+  next correct join. Rotating `TOKEN_SECRET` now also means creators set their
+  boards' PINs again for guests to enter.
 - Each incoming socket message is decoded once, and a preview is no longer
   serialized again to check its size: the frame's length is what is measured now.
 
