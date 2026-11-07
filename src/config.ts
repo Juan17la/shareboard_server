@@ -33,11 +33,11 @@ export const config = {
    */
   workers: Math.max(1, Math.floor(Number(env.WORKERS ?? 1)) || 1),
   /**
-   * Broadcasts wait up to this long to share one write per socket. The biggest
-   * lever on the realtime path; 0 sends each one at once, as a fair comparison
-   * or if the delay is ever noticed. A live cursor updates every 45 ms anyway.
+   * 0 (default): a socket's broadcasts share one write per event-loop turn, at
+   * no added wait. Above 0, they also wait up to this long for more: fewer
+   * writes, but every frame is that much later (25 measured +25 ms p50).
    */
-  broadcastFlushMs: Math.max(0, Number(env.BROADCAST_FLUSH_MS ?? 25) || 0),
+  broadcastFlushMs: Math.max(0, Number(env.BROADCAST_FLUSH_MS ?? 0) || 0),
 
   /** Every change reaches Mongo within this window; edits inside it share one write. */
   writeDelayMs: Number(env.WRITE_DELAY_MS ?? 1000),

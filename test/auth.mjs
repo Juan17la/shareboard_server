@@ -119,6 +119,18 @@ assert.equal(code(await join(bob.account.id, { token: bob.token })), 'PIN_REQUIR
 assert.equal((await call('GET', '/me/boards', { token: bob.token })).body.boards.length, 0);
 assert.equal((await join(ana.id, { token: ana.token })).status, 200);
 
+// PINs are HMACs now; an old scrypt one (`<salt>:<key>`) still lets a guest in and is upgraded.
+const live = await (await import('../src/store/boards.ts')).getBoard(id);
+assert.match(live.pinHash, /^p1\$/);
+const { randomBytes: rb, scryptSync: sc } = await import('node:crypto');
+const pinSalt = rb(16);
+live.pinHash = `${pinSalt.toString('hex')}:${sc('5678', pinSalt, 32).toString('hex')}`;
+assert.equal(code(await join('guest-old', { body: { pin: '0000' } })), 'PIN_INVALID');
+assert.ok(!live.pinHash.startsWith('p1$'), 'a wrong PIN upgrades nothing');
+assert.equal((await join('guest-old', { body: { pin: '5678' } })).status, 200);
+assert.match(live.pinHash, /^p1\$/);
+assert.equal((await join('guest-old2', { body: { pin: '5678' } })).status, 200);
+
 // Taking a board off the list; the creator's own can only be deleted.
 assert.equal((await join(bob.account.id, { token: bob.token, body: { pin: '5678' } })).status, 200);
 assert.equal((await call('DELETE', `/me/boards/${id}`, { token: bob.token })).status, 204);
@@ -172,9 +184,12 @@ assert.equal((await call('POST', '/auth/login', { body: { login: 'ana.b', passwo
 
 // An account without an email (from before emails) adds one, with its password.
 const usersStore = await import('../src/store/users.ts');
-const { hashPin } = await import('../src/pin.ts');
+// The oldest form, `<salt>:<key>` with scrypt's defaults.
+const { randomBytes, scryptSync } = await import('node:crypto');
+const oldSalt = randomBytes(16);
+const legacyHash = `${oldSalt.toString('hex')}:${scryptSync('old password', oldSalt, 32).toString('hex')}`;
 const oldId = usersStore.newAccountId();
-await usersStore.createUser({ _id: oldId, username: 'old.timer', passwordHash: await hashPin('old password'), nickname: 'Old', createdAt: 1 });
+await usersStore.createUser({ _id: oldId, username: 'old.timer', passwordHash: legacyHash, nickname: 'Old', createdAt: 1 });
 const oldLogin = await call('POST', '/auth/login', { body: { username: 'old.timer', password: 'old password' } });
 assert.equal(oldLogin.status, 200);
 assert.equal(oldLogin.body.account.email, null);
