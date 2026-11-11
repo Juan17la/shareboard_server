@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.10.0-beta] - 2026-11-11
+
 ### Added
 
 - `WORKERS=n` runs n Node processes on one machine, each board always on the
