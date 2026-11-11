@@ -10,7 +10,10 @@
  * Broadcasts are serialized once and sent in batches: the realtime path's
  * largest cost is the `writev` per frame and per recipient (46 % of the main
  * thread under load, against ~7 % for building the frames), so each socket
- * gets one write per `config.broadcastFlushMs`, whatever fits in it.
+ * gets one write per event-loop turn, whatever its frames that turn add up to.
+ * The busier the server, the longer a turn and the bigger the batch; idle, a
+ * frame waits for nothing. A fixed 25 ms window measured +25 ms on every
+ * broadcast's p50 in all five environments (`config.broadcastFlushMs`).
  */
 import { config } from '../config.js';
 import type { ServerMessage } from '../model/protocol.js';
@@ -31,7 +34,7 @@ export interface Client {
 
 const rooms = new Map<string, Set<Client>>();
 const dirty = new Set<Client>();
-let flushTimer: NodeJS.Timeout | null = null;
+let flushTimer: NodeJS.Timeout | NodeJS.Immediate | null = null;
 
 function flushDirty(): void {
   flushTimer = null;
@@ -66,10 +69,11 @@ export function broadcast(boardId: string, msg: ServerMessage, exceptUserId?: Us
   for (const client of room) {
     if (client.userId === exceptUserId) continue;
     client.enqueue((text ??= JSON.stringify(msg)));
-    if (config.broadcastFlushMs > 0) dirty.add(client);
-    else client.flush();
+    dirty.add(client);
   }
-  if (dirty.size > 0) flushTimer ??= setTimeout(flushDirty, config.broadcastFlushMs);
+  if (dirty.size > 0) {
+    flushTimer ??= config.broadcastFlushMs > 0 ? setTimeout(flushDirty, config.broadcastFlushMs) : setImmediate(flushDirty);
+  }
 }
 
 export function clientsOf(boardId: string): Client[] {

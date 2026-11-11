@@ -1,25 +1,41 @@
 /** PIN and password hashing. Neither is ever stored or returned in clear. */
 import crypto, { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
+import { codeHash, sameHash } from './tokens.js';
+
 const scryptAsync = (secret: string, salt: Buffer, params: object) =>
   new Promise<Buffer>((resolve, reject) =>
     scrypt(secret, salt, 32, params, (err, key) => (err ? reject(err) : resolve(key))),
   );
 
-/** Async: a PIN takes ~45 ms of CPU, which on the main thread would freeze every board's sockets. */
-export async function hashPin(pin: string): Promise<string> {
-  const salt = randomBytes(16);
-  const key = await scryptAsync(pin, salt, {});
-  return `${salt.toString('hex')}:${key.toString('hex')}`;
+/**
+ * PINs: an HMAC under TOKEN_SECRET, like the emailed codes, stored as
+ * `p1$<salt>$<mac>`. A slow hash buys nothing for 4 to 12 digits (10^4 guesses
+ * at scrypt's ~45 ms is minutes of one core), yet cost ~45 ms on every guest
+ * join; online guessing is held by the PIN rate limit, and a leaked database
+ * cannot be tried offline without the secret. Microseconds, so no thread pool.
+ * Rotating TOKEN_SECRET leaves guests unable to enter PIN boards until the
+ * creator sets the PIN again (creator and members are never asked).
+ * The older `<salt>:<key>` scrypt form still verifies; `pinNeedsRehash` upgrades it.
+ */
+export function hashPin(pin: string): string {
+  const salt = randomBytes(16).toString('hex');
+  return `p1$${salt}$${codeHash('pin', salt, pin)}`;
 }
 
 export async function verifyPin(pin: string, stored: string): Promise<boolean> {
+  if (stored.startsWith('p1$')) {
+    const [salt, mac] = stored.slice(3).split('$');
+    return !!salt && !!mac && sameHash(mac, codeHash('pin', salt, pin));
+  }
   const [saltHex, keyHex] = stored.split(':');
   if (!saltHex || !keyHex) return false;
   const key = await scryptAsync(pin, Buffer.from(saltHex, 'hex'), {});
   const expected = Buffer.from(keyHex, 'hex');
   return key.length === expected.length && timingSafeEqual(key, expected);
 }
+
+export const pinNeedsRehash = (stored: string) => !stored.startsWith('p1$');
 
 /**
  * Passwords: Argon2id, OWASP's first choice, at its 19 MiB, t=2, p=1 minimum.
