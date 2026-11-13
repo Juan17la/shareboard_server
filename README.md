@@ -14,7 +14,7 @@ Full documentation, including the protocol and the internals of this server:
 
 <div align="center">
 
-<img src="docs/assets/board-phone.png" alt="Shareboard on Android: a mind map on the board, with the header, zoom and toolbar" width="260" />
+<img src="docs/assets/board-phone.png" alt="Shareboard on Android: a brainstorm template on the board, with the header, zoom and toolbar" width="260" />
 &nbsp;&nbsp;
 <img src="docs/assets/board-desktop.png" alt="Shareboard in the browser: a sprint board with shapes, arrows and sticky notes" width="640" />
 
