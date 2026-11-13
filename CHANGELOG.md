@@ -7,6 +7,8 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.11.0-beta] - 2026-11-13
+
 ### Changed
 
 - No server changes; released alongside web and mobile (new logo, public page light theme).
