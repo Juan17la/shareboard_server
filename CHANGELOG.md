@@ -7,6 +7,12 @@ All notable changes to the Shareboard server. The format follows
 
 ## [Unreleased]
 
+## [1.11.1-beta] - 2026-11-15
+
+### Changed
+
+- No changes; released alongside mobile (doubled text while typing on Android, Expo SDK 58).
+
 ## [1.11.0-beta] - 2026-11-13
 
 ### Changed
